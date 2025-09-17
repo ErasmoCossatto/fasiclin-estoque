@@ -1,0 +1,43 @@
+package com.br.fasipe.estoque.MovimentacaoEstoque.models;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@Entity
+@Table(name = "PESSOA")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode(of = "id")
+@ToString
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+public class Pessoa {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "IDPESSOA")
+    private Integer id;
+
+    @NotNull(message = "O tipo de pessoa deve ser informado")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "TIPOPESSOA", nullable = false)
+    private TipoPessoa tipoPessoa;
+
+    public enum TipoPessoa {
+        F, J
+    }
+}
