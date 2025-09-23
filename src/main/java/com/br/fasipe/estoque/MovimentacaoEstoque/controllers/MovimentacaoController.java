@@ -1,8 +1,6 @@
 package com.br.fasipe.estoque.MovimentacaoEstoque.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,7 +21,6 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api/movimentacoes")
-@CrossOrigin(origins = "*")
 public class MovimentacaoController {
 
     @Autowired
@@ -36,8 +33,16 @@ public class MovimentacaoController {
     @GetMapping
     public ResponseEntity<List<Movimentacao>> listarMovimentacoes() {
         log.info("Listando todas as movimentações");
-        List<Movimentacao> movimentacoes = movimentacaoService.findAll();
-        return ResponseEntity.ok(movimentacoes);
+        try {
+            List<Movimentacao> movimentacoes = movimentacaoService.findAll();
+            log.info("Encontradas {} movimentações", movimentacoes.size());
+
+            return ResponseEntity.ok(movimentacoes);
+        } catch (Exception e) {
+            log.error("Erro ao listar movimentações: {}", e.getMessage(), e);
+            return ResponseEntity.status(500)
+                    .body(List.of()); // Retorna lista vazia em caso de erro
+        }
     }
 
     /**
@@ -58,8 +63,16 @@ public class MovimentacaoController {
     @PostMapping
     public ResponseEntity<Movimentacao> registrarMovimentacao(@RequestBody Movimentacao movimentacao) {
         log.info("Registrando nova movimentação do tipo: {}", movimentacao.getTipoMovimentacao());
-        Movimentacao novaMovimentacao = movimentacaoService.insert(movimentacao);
-        return ResponseEntity.ok(novaMovimentacao);
+        log.info("Dados recebidos - Quantidade: {}, Data: {}", movimentacao.getQuantidade(), movimentacao.getDataMovimentacao());
+        
+        try {
+            Movimentacao novaMovimentacao = movimentacaoService.insert(movimentacao);
+            log.info("Movimentação criada com sucesso - ID: {}", novaMovimentacao.getId());
+            return ResponseEntity.ok(novaMovimentacao);
+        } catch (Exception e) {
+            log.error("Erro ao criar movimentação: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
@@ -144,5 +157,20 @@ public class MovimentacaoController {
         log.info("Buscando movimentações do tipo: {}", tipo);
         List<Movimentacao> movimentacoes = movimentacaoService.findByTipoMovimentacao(tipo);
         return ResponseEntity.ok(movimentacoes);
+    }
+
+    /**
+     * Endpoint para criar dados de teste (temporário para desenvolvimento)
+     */
+    @PostMapping("/test-data")
+    public ResponseEntity<String> criarDadosTeste() {
+        log.info("Criando dados de teste");
+        try {
+            movimentacaoService.criarDadosTeste();
+            return ResponseEntity.ok("Dados de teste criados com sucesso!");
+        } catch (Exception e) {
+            log.error("Erro ao criar dados de teste: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body("Erro ao criar dados de teste: " + e.getMessage());
+        }
     }
 }

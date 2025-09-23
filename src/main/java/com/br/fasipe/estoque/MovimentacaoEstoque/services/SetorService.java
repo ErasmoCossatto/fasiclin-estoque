@@ -32,6 +32,23 @@ public class SetorService extends BaseService {
     private SetorRepository setorRepository;
 
     /**
+     * Busca todos os setores sem paginação
+     * @return Lista de todos os setores
+     */
+    @Cacheable(value = "setores", key = "'all'")
+    public java.util.List<Setor> findAll() {
+        long startTime = System.currentTimeMillis();
+        log.info("Buscando todos os setores");
+        
+        java.util.List<Setor> setores = setorRepository.findAll();
+        
+        long endTime = System.currentTimeMillis();
+        log.info("Busca de todos os setores executada em {}ms. Total: {}", endTime - startTime, setores.size());
+        
+        return setores;
+    }
+
+    /**
      * Busca todos os setores com paginação otimizada
      * @param page Número da página (0-based)
      * @param size Tamanho da página (máximo 100)

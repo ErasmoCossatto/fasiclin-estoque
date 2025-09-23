@@ -20,7 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.ToString;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "MOVIMENTACAO")
@@ -30,7 +30,8 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(of = "id")
 @ToString
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class Movimentacao {
+public class Movimentacao implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,30 +49,50 @@ public class Movimentacao {
 
     @NotNull(message = "A data da movimentação deve ser informada")
     @Column(name = "DATAMOVIM", nullable = false)
-    private LocalDateTime dataMovimentacao;
+    private LocalDate dataMovimentacao;
 
-    @NotNull(message = "O estoque da movimentação deve ser informado")
+    @NotNull(message = "O estoque deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_ESTOQUE", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Estoque estoque;
 
-    @NotNull(message = "O usuário da movimentação deve ser informado")
+    @NotNull(message = "O usuário deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_USUARIO", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Usuario usuario;
 
-    @NotNull(message = "O setor de origem da movimentação deve ser informado")
+    @NotNull(message = "O setor de origem deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_SETOR_ORIGEM", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Setor setorOrigem;
 
-    @NotNull(message = "O setor de destino da movimentação deve ser informado")
+    @NotNull(message = "O setor de destino deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_SETOR_DESTINO", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Setor setorDestino;
 
     public enum TipoMovimentacao {
         ENTRADA,
         SAIDA
+    }
+    
+    // Método para obter o nome do produto através da relação com estoque
+    public String getNomeProduto() {
+        if (this.estoque != null && this.estoque.getProduto() != null) {
+            return this.estoque.getProduto().getNome();
+        }
+        return "Produto não encontrado";
+    }
+    
+    // Método para obter a descrição do produto através da relação com estoque
+    public String getDescricaoProduto() {
+        if (this.estoque != null && this.estoque.getProduto() != null) {
+            return this.estoque.getProduto().getDescricao();
+        }
+        return "Descrição não encontrada";
     }
 }

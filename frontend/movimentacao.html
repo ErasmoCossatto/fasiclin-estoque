@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Movimentação</title>
+    <!-- Importação de Fontes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Links para os arquivos de Estilo -->
+    <link rel="stylesheet" href="./assets/css/global.css">
+    <link rel="stylesheet" href="./assets/css/movimentacao.css">
+    <link rel="stylesheet" href="./assets/css/responsive.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Cabeçalho -->
+        <header class="header">
+            <div class="header-content">
+                <h2 class="title">Movimentações</h2>
+                <div class="header-actions">
+                    <input type="text" placeholder="Buscar..." class="search-input">
+                    <button class="icon-button">🔔</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Principal -->
+        <main class="main-content">
+            <!-- Botões de Ação -->
+            <div class="action-bar">
+                <button id="add-movement-btn" class="btn btn-primary">
+                    <span>+</span> Nova Movimentação
+                </button>
+                <div class="action-bar-buttons">
+                    <button class="icon-button" id="create-test-data-btn">Criar Dados Teste</button>
+                    <button class="icon-button" id="create-basic-data-btn">Criar Dados Básicos</button>
+                    <button class="icon-button">Filtro</button>
+                    <button class="icon-button">Download</button>
+                </div>
+            </div>
+
+            <!-- Indicador de Carregamento -->
+            <div id="loading-indicator" style="display: none; text-align: center; padding: 2rem;">
+                <p>Carregando movimentações...</p>
+            </div>
+
+            <!-- Tabela de Movimentações -->
+            <div class="table-container">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Produto</th>
+                                <th>Tipo</th>
+                                <th>Quantidade</th>
+                                <th>Data</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="movements-table-body">
+                            <!-- Os dados serão carregados via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Paginação da Tabela -->
+                <div class="pagination">
+                    <div class="pagination-info">
+                        Mostrando <span id="start-item">1</span> a <span id="end-item">10</span> de <span
+                            id="total-items">0</span> registros
+                    </div>
+                    <div class="pagination-buttons">
+                        <button id="prev-page" disabled>Anterior</button>
+                        <button id="next-page" disabled>Próxima</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Adicionar/Editar Movimentação -->
+    <div id="movement-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title" class="title">Nova Movimentação</h3>
+                <button id="close-modal" class="close-button">&times;</button>
+            </div>
+            <form id="movement-form" class="modal-body">
+                <input type="hidden" id="movement-id">
+                
+                <div class="form-group">
+                    <label for="estoque-select">Produto (Estoque) *</label>
+                    <select id="estoque-select" class="form-control" required>
+                        <option value="">Carregando produtos...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="usuario-select">Usuário *</label>
+                    <select id="usuario-select" class="form-control" required>
+                        <option value="">Carregando usuários...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="setor-origem-select">Setor Origem *</label>
+                    <select id="setor-origem-select" class="form-control" required>
+                        <option value="">Carregando setores...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="setor-destino-select">Setor Destino *</label>
+                    <select id="setor-destino-select" class="form-control" required>
+                        <option value="">Carregando setores...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="type">Tipo de Movimentação *</label>
+                    <select id="type" class="form-control" required>
+                        <option value="">Selecione...</option>
+                        <option value="ENTRADA">Entrada</option>
+                        <option value="SAIDA">Saída</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount">Quantidade *</label>
+                    <input type="number" id="amount" min="1" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="date">Data *</label>
+                    <input type="date" id="date" class="form-control" required>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" id="cancel-btn" class="btn">Cancelar</button>
+                    <button type="submit" id="save-btn" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="title">Confirmar Exclusão</h3>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir esta movimentação?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-delete" class="btn">Cancelar</button>
+                <button id="confirm-delete" class="btn btn-danger">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links para os arquivos JavaScript -->
+    <script src="./assets/js/ApiManager.js"></script>
+    <script src="./assets/js/MovimentacaoManager.js"></script>
+</body>
+
+</html>
