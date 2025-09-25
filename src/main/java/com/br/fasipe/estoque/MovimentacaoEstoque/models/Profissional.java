@@ -41,7 +41,7 @@ public class Profissional {
     private PessoaFisica pessoaFisica;
 
     @NotNull(message = "O tipo de profissional deve ser informado")
-    @Enumerated(EnumType.STRING)
+    @Enumerated(EnumType.ORDINAL)
     @Column(name = "TIPOPROFI", nullable = false)
     private TipoProfissional tipoProfissional;
 
@@ -49,7 +49,7 @@ public class Profissional {
     @JoinColumn(name = "ID_SUPPROFI")
     private Profissional supervisor;
 
-    @Enumerated(EnumType.STRING)
+    @Enumerated(EnumType.ORDINAL)
     @Column(name = "STATUSPROFI")
     private StatusProfissional statusProfissional;
 
@@ -59,30 +59,10 @@ public class Profissional {
     private ConselhoProfissional conselhoProfissional;
 
     public enum TipoProfissional {
-        _1("1"), _2("2"), _3("3"), _4("4");
-        
-        private String codigo;
-        
-        TipoProfissional(String codigo) {
-            this.codigo = codigo;
-        }
-        
-        public String getCodigo() {
-            return codigo;
-        }
+        TIPO_1, TIPO_2, TIPO_3, TIPO_4
     }
 
     public enum StatusProfissional {
-        _1("1"), _2("2"), _3("3");
-        
-        private String codigo;
-        
-        StatusProfissional(String codigo) {
-            this.codigo = codigo;
-        }
-        
-        public String getCodigo() {
-            return codigo;
-        }
+        ATIVO, INATIVO, SUSPENSO
     }
 }

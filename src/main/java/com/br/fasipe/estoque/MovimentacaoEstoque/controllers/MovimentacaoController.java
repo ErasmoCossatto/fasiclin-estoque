@@ -4,15 +4,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
 
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao.TipoMovimentacao;
 import com.br.fasipe.estoque.MovimentacaoEstoque.services.MovimentacaoService;
+import com.br.fasipe.estoque.MovimentacaoEstoque.dto.MovimentacaoEntreSetoresDTO;
 
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+
+import jakarta.validation.Valid;
 
 /**
  * Controller para gerenciamento de movimentações de estoque
@@ -73,6 +78,39 @@ public class MovimentacaoController {
         } catch (Exception e) {
             log.error("Erro ao criar movimentação: {}", e.getMessage(), e);
             throw e;
+        }
+    }
+    
+    /**
+     * Movimenta produto entre setores
+     * Endpoint principal para transferência de produtos entre setores/almoxarifados
+     */
+    @PostMapping("/entre-setores")
+    public ResponseEntity<?> movimentarEntreSetores(@Valid @RequestBody MovimentacaoEntreSetoresDTO dto) {
+        log.info("Recebendo solicitação de movimentação entre setores: {}", dto);
+        
+        try {
+            Movimentacao movimentacao = movimentacaoService.movimentarProdutoEntreSetores(dto);
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(movimentacao);
+        } catch (IllegalArgumentException e) {
+            log.warn("Erro de validação na movimentação entre setores: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "erro", "Dados inválidos",
+                "mensagem", e.getMessage()
+            ));
+        } catch (IllegalStateException e) {
+            log.warn("Erro de estado na movimentação entre setores: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "erro", "Estado inválido",
+                "mensagem", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("Erro interno na movimentação entre setores: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "erro", "Erro interno do servidor",
+                "mensagem", "Falha ao processar movimentação"
+            ));
         }
     }
 

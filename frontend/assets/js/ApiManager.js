@@ -8,12 +8,13 @@ class ApiManager {
         this.baseURL = 'http://localhost:8080/api';
         this.headers = {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Access-Control-Allow-Origin': '*'
         };
     }
 
     /**
-     * Método genérico para fazer requisições HTTP
+     * Método genérico para fazer requisições HTTP com melhor tratamento de erros
      * @param {string} endpoint - Endpoint da API
      * @param {Object} options - Opções da requisição (method, body, etc.)
      * @returns {Promise} - Promise com a resposta da API
@@ -22,6 +23,7 @@ class ApiManager {
         const url = `${this.baseURL}${endpoint}`;
         const config = {
             headers: this.headers,
+            mode: 'cors',
             ...options
         };
 
@@ -32,20 +34,33 @@ class ApiManager {
             }
             const response = await fetch(url, config);
             
+            // Log do status da resposta
+            console.log(`[API] Response status: ${response.status} ${response.statusText}`);
+            
             if (!response.ok) {
-                throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+                // Tentar obter detalhes do erro
+                let errorDetails;
+                try {
+                    errorDetails = await response.text();
+                    console.error(`[API] Error details:`, errorDetails);
+                } catch (e) {
+                    errorDetails = 'Não foi possível obter detalhes do erro';
+                }
+                throw new Error(`HTTP Error: ${response.status} ${response.statusText} - ${errorDetails}`);
             }
 
             // Verifica se a resposta tem conteúdo
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-                return await response.json();
+                const data = await response.json();
+                console.log('[API] Response data:', data);
+                return { success: true, data: data };
             }
             
-            return response;
+            return { success: true, data: null };
         } catch (error) {
             console.error(`[API Error] ${config.method || 'GET'} ${url}:`, error);
-            throw error;
+            return { success: false, error: error.message, data: null };
         }
     }
 

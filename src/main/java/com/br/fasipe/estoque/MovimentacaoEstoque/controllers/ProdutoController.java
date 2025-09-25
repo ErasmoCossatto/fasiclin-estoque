@@ -38,11 +38,27 @@ public class ProdutoController {
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "ASC") Sort.Direction direction) {
         
-        log.info("Listando produtos - Página: {}, Tamanho: {}, Ordenação: {}", page, size, sortBy);
-        
-        Page<Produto> produtos = produtoService.findAllPaginated(page, size, sortBy, direction);
-        
-        return ResponseEntity.ok(produtos);
+        try {
+            log.info("Listando produtos - Página: {}, Tamanho: {}, Ordenação: {}", page, size, sortBy);
+            
+            Page<Produto> produtos = produtoService.findAllPaginated(page, size, sortBy, direction);
+            
+            log.info("Produtos encontrados: {}", produtos.getTotalElements());
+            return ResponseEntity.ok(produtos);
+            
+        } catch (Exception e) {
+            log.error("Erro ao listar produtos: ", e);
+            throw new RuntimeException("Erro ao buscar produtos: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Endpoint de teste simples para diagnóstico
+     */
+    @GetMapping("/test")
+    public ResponseEntity<String> test() {
+        log.info("Endpoint de teste acessado");
+        return ResponseEntity.ok("API está funcionando!");
     }
 
     /**

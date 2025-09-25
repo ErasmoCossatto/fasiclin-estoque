@@ -4,72 +4,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#007bff">
+    <meta name="theme-color" content="#007aff">
     <meta name="description" content="Sistema de controle de movimentação de estoque - FasiClin">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FasiClin Estoque">
     <title>Dashboard de Movimentação - FasiClin</title>
     
-    <!-- Preload para otimização -->
-    <link rel="preload" href="./assets/css/global.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="./assets/css/global.css"></noscript>
-    
-    <!-- Importação de Fontes com display swap para performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    
-    <!-- Links para os arquivos de Estilo -->
+    <!-- Links para os arquivos de Estilo Apple-inspired -->
     <link rel="stylesheet" href="./assets/css/global.css">
     <link rel="stylesheet" href="./assets/css/movimentacao.css">
     <link rel="stylesheet" href="./assets/css/responsive.css">
     
-    <!-- Icons para PWA -->
-    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007bff'/><text x='50' y='58' font-family='sans-serif' font-size='30' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007bff'/><text x='50' y='58' font-family='sans-serif' font-size='30' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
+    <!-- Icons Apple-style -->
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007aff'/><text x='50' y='58' font-family='sans-serif' font-size='28' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007aff'/><text x='50' y='58' font-family='sans-serif' font-size='28' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
 </head>
 
 <body>
     <div class="container">
-        <!-- Cabeçalho -->
+        <!-- Cabeçalho Apple-style -->
         <header class="header">
             <div class="header-content">
-                <h2 class="title">Movimentações</h2>
+                <h2 class="title">📦 Movimentações de Estoque</h2>
                 <div class="header-actions">
-                    <input type="text" placeholder="Buscar..." class="search-input">
-                    <button class="icon-button">🔔</button>
+                    <input type="text" placeholder="Buscar movimentação..." class="search-input">
+                    <button class="icon-button" title="Notificações">🔔</button>
                 </div>
             </div>
         </header>
 
         <!-- Conteúdo Principal -->
         <main class="main-content">
-            <!-- Botões de Ação -->
+            <!-- Botões de Ação Principais -->
             <div class="action-bar">
                 <button id="add-movement-btn" class="btn btn-primary">
-                    <span>+</span> Nova Movimentação
+                    <span>➕</span> Nova Movimentação
                 </button>
+                <div class="action-bar-buttons">
+                    <button class="btn" onclick="loadMovements()">
+                        <span>🔄</span> Atualizar
+                    </button>
+                </div>
             </div>
 
-            <!-- Indicador de Carregamento -->
-            <div id="loading-indicator" style="display: none; text-align: center; padding: 2rem;">
-                <p>Carregando movimentações...</p>
+            <!-- Indicador de Carregamento Apple-style -->
+            <div id="loading-indicator" style="display: none;">
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <p>Carregando movimentações...</p>
+                </div>
             </div>
 
-            <!-- Tabela de Movimentações -->
+            <!-- Tabela de Movimentações com Design Apple -->
             <div class="table-container">
                 <div class="table-wrapper">
                     <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Produto</th>
-                                <th>Tipo</th>
-                                <th>Quantidade</th>
-                                <th>Data</th>
-                                <th>Ações</th>
+                                <th>📦 Produto</th>
+                                <th>🔄 Tipo</th>
+                                <th>📊 Quantidade</th>
+                                <th>📅 Data</th>
+                                <th>👤 Usuário</th>
+                                <th>⚙️ Ações</th>
                             </tr>
                         </thead>
                         <tbody id="movements-table-body">
@@ -78,135 +77,149 @@
                     </table>
                 </div>
                 
-                <!-- Versão Mobile - Cards -->
+                <!-- Versão Mobile - Cards Apple-style -->
                 <div id="mobile-cards" class="mobile-cards" style="display: none;">
                     <!-- Os cards serão carregados via JavaScript -->
                 </div>
                 
-                <!-- Paginação da Tabela -->
+                <!-- Paginação Apple-style -->
                 <div class="pagination">
                     <div class="pagination-info">
                         Mostrando <span id="start-item">1</span> a <span id="end-item">10</span> de <span
                             id="total-items">0</span> registros
                     </div>
                     <div class="pagination-buttons">
-                        <button id="prev-page" disabled>Anterior</button>
-                        <button id="next-page" disabled>Próxima</button>
+                        <button id="prev-page" disabled>← Anterior</button>
+                        <button id="next-page" disabled>Próxima →</button>
                     </div>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Modal de Adicionar/Editar Movimentação -->
+    <!-- Modal de Adicionar/Editar Movimentação Apple-style -->
     <div id="movement-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modal-title" class="title">Nova Movimentação</h3>
+                <h3 id="modal-title" class="title">✨ Nova Movimentação</h3>
                 <button id="close-modal" class="close-button">&times;</button>
             </div>
             <form id="movement-form" class="modal-body">
                 <input type="hidden" id="movement-id">
                 
                 <div class="form-group">
-                    <label for="estoque-select">Produto (Estoque) *</label>
+                    <label for="estoque-select">📦 Produto (Estoque) *</label>
                     <select id="estoque-select" class="form-control" required>
                         <option value="">Carregando produtos...</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="usuario-select">Usuário *</label>
+                    <label for="usuario-select">👤 Usuário Responsável *</label>
                     <select id="usuario-select" class="form-control" required>
                         <option value="">Carregando usuários...</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="setor-origem-select">Setor Origem *</label>
+                    <label for="setor-origem-select">📍 Setor de Origem *</label>
                     <select id="setor-origem-select" class="form-control" required>
                         <option value="">Carregando setores...</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="setor-destino-select">Setor Destino *</label>
+                    <label for="setor-destino-select">🎯 Setor de Destino *</label>
                     <select id="setor-destino-select" class="form-control" required>
                         <option value="">Carregando setores...</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="type">Tipo de Movimentação *</label>
+                    <label for="type">🔄 Tipo de Movimentação *</label>
                     <select id="type" class="form-control" required>
-                        <option value="">Selecione...</option>
-                        <option value="ENTRADA">Entrada</option>
-                        <option value="SAIDA">Saída</option>
+                        <option value="">Selecione o tipo...</option>
+                        <option value="ENTRADA">⬆️ Entrada</option>
+                        <option value="SAIDA">⬇️ Saída</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="amount">Quantidade *</label>
-                    <input type="number" id="amount" min="1" class="form-control" required>
+                    <label for="amount">📊 Quantidade *</label>
+                    <input type="number" id="amount" min="1" class="form-control" required 
+                           placeholder="Digite a quantidade">
                 </div>
                 
                 <div class="form-group">
-                    <label for="date">Data *</label>
+                    <label for="date">📅 Data da Movimentação *</label>
                     <input type="date" id="date" class="form-control" required>
                 </div>
                 
                 <div class="modal-footer">
                     <button type="button" id="cancel-btn" class="btn">Cancelar</button>
-                    <button type="submit" id="save-btn" class="btn btn-primary">Salvar</button>
+                    <button type="submit" id="save-btn" class="btn btn-primary">💾 Salvar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal de Confirmação de Exclusão -->
+    <!-- Modal de Confirmação de Exclusão Apple-style -->
     <div id="confirm-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="title">Confirmar Exclusão</h3>
+                <h3 class="title">⚠️ Confirmar Exclusão</h3>
             </div>
             <div class="modal-body">
                 <p>Tem certeza que deseja excluir esta movimentação?</p>
+                <p><strong>Esta ação não pode ser desfeita.</strong></p>
             </div>
             <div class="modal-footer">
                 <button id="cancel-delete" class="btn">Cancelar</button>
-                <button id="confirm-delete" class="btn btn-danger">Excluir</button>
+                <button id="confirm-delete" class="btn btn-danger">🗑️ Excluir</button>
             </div>
         </div>
     </div>
 
-    <!-- Container de Notificações Toast -->
-    <div id="notification-container" class="notification-container" aria-live="polite"></div>
-
-    <!-- Links para os arquivos JavaScript -->
+    <!-- Scripts -->
     <script src="./assets/js/ApiManager.js"></script>
     <script src="./assets/js/MovimentacaoManager.js"></script>
     
+    <!-- Script para responsividade Apple-style -->
     <script>
         // Detecta se é mobile e alterna entre tabela e cards
         function checkMobileView() {
-            const isMobile = window.innerWidth <= 480;
+            const isMobile = window.innerWidth <= 768;
             const tableWrapper = document.querySelector('.table-wrapper');
             const mobileCards = document.getElementById('mobile-cards');
             
             if (isMobile) {
                 tableWrapper.style.display = 'none';
-                mobileCards.style.display = 'block';
-                mobileCards.classList.add('mobile-cards');
+                mobileCards.style.display = 'flex';
             } else {
                 tableWrapper.style.display = 'block';
                 mobileCards.style.display = 'none';
-                mobileCards.classList.remove('mobile-cards');
             }
         }
         
         // Executa na carga da página e no redimensionamento
         window.addEventListener('load', checkMobileView);
         window.addEventListener('resize', checkMobileView);
+        
+        // Adiciona efeitos visuais Apple-style
+        document.addEventListener('DOMContentLoaded', function() {
+            // Efeito de fade-in nos elementos
+            const elements = document.querySelectorAll('.header, .main-content, .table-container');
+            elements.forEach((element, index) => {
+                element.style.opacity = '0';
+                element.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    element.style.transition = 'opacity 0.6s ease-out, transform 0.6s ease-out';
+                    element.style.opacity = '1';
+                    element.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+        });
     </script>
 </body>
 
