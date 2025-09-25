@@ -85,10 +85,10 @@ public class SetorController {
         log.info("Criando novo setor: {}", setor.getNome());
         try {
             Setor setorSalvo = setorService.save(setor);
-            return ResponseEntity.ok(setorSalvo);
+            return ResponseEntity.status(201).body(setorSalvo);
         } catch (Exception e) {
             log.error("Erro ao criar setor: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).build();
+            return ResponseEntity.badRequest().build();
         }
     }
 

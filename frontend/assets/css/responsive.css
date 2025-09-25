@@ -1,42 +1,438 @@
 /* Importação do CSS Global */
 @import url('./global.css');
 
-@media (max-width: 768px) {
-    .main-content {
-        padding: 1rem;
-    }
+/* Breakpoints modernos mobile-first */
+/* 
+   xs: 0px - 575px (smartphones)
+   sm: 576px - 767px (smartphones landscape/tablets portrait)  
+   md: 768px - 991px (tablets)
+   lg: 992px - 1199px (desktops pequenos)
+   xl: 1200px+ (desktops grandes)
+*/
 
+/* Mobile First - Estilos base já otimizados para mobile */
+
+/* Small devices (landscape phones, 576px and up) */
+@media (min-width: 576px) {
     .header-content {
-        padding: 0.75rem 1rem;
-    }
-
-    .action-bar {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1rem;
-    }
-
-    .pagination {
-        flex-direction: column;
-        gap: 0.75rem;
-        align-items: flex-start;
+        padding: var(--spacing-lg) var(--spacing-xl);
     }
     
-    .modal-content {
-        max-width: 90%;
+    .main-content {
+        padding: var(--spacing-xl) var(--spacing-2xl);
+    }
+    
+    .search-input {
+        width: 250px;
     }
 }
 
-@media (max-width: 480px) {
+/* Medium devices (tablets, 768px and up) */
+@media (min-width: 768px) {
+    .container {
+        grid-template-rows: auto 1fr;
+    }
+    
+    .action-bar {
+        flex-wrap: nowrap;
+    }
+    
+    .table-container {
+        border-radius: var(--border-radius-2xl);
+    }
+    
+    /* Tabela com scroll horizontal suave em tablets */
+    .table-wrapper {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .modal-content {
+        max-width: 600px;
+    }
+    
+    .notification {
+        top: var(--spacing-2xl);
+        right: var(--spacing-2xl);
+    }
+}
+
+/* Large devices (desktops, 992px and up) */
+@media (min-width: 992px) {
     .title {
-        font-size: 1.1rem;
+        font-size: var(--font-size-3xl);
     }
-
-    .header-actions {
-        gap: 0.5rem;
-    }
-
+    
     .search-input {
-        width: 120px;
+        width: 300px;
+    }
+    
+    /* Hover effects apenas em dispositivos com hover */
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    tbody tr:hover {
+        transform: scale(1.002);
+    }
+}
+
+/* Extra large devices (large desktops, 1200px and up) */
+@media (min-width: 1200px) {
+    .main-content {
+        padding: var(--spacing-2xl) var(--spacing-3xl);
+    }
+    
+    .header-content {
+        padding: var(--spacing-xl) var(--spacing-2xl);
+    }
+}
+
+/* ===== RESPONSIVE BREAKDOWN POINTS ===== */
+
+/* Mobile portrait (320px - 480px) */
+@media (max-width: 480px) {
+    .container {
+        overflow-x: hidden;
+    }
+    
+    .header-content {
+        padding: var(--spacing-md) var(--spacing-lg);
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: stretch;
+    }
+    
+    .title {
+        font-size: var(--font-size-xl);
+        text-align: center;
+    }
+    
+    .header-actions {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: var(--spacing-sm);
+    }
+    
+    .search-input {
+        width: 100%;
+        max-width: 200px;
+        font-size: var(--font-size-sm);
+    }
+    
+    .main-content {
+        padding: var(--spacing-lg);
+    }
+    
+    /* Action bar em mobile */
+    .action-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-lg);
+    }
+    
+    .action-bar-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+    }
+    
+    .btn {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-md);
+        border-radius: var(--border-radius-lg);
+        justify-content: center;
+    }
+    
+    /* Tabela mobile - design de cards */
+    .table-container {
+        border-radius: var(--border-radius-xl);
+        box-shadow: var(--shadow-md);
+    }
+    
+    .table-wrapper {
+        display: none; /* Esconde tabela tradicional */
+    }
+    
+    /* Cards para móvel */
+    .mobile-cards {
+        display: block;
+        padding: var(--spacing-lg);
+    }
+    
+    .mobile-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--border-radius-xl);
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--gray-100);
+        transition: var(--transition-base);
+    }
+    
+    .mobile-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+    
+    .mobile-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--gray-100);
+    }
+    
+    .mobile-card-id {
+        font-weight: 700;
+        color: var(--primary-color);
+        font-size: var(--font-size-sm);
+    }
+    
+    .mobile-card-body {
+        display: grid;
+        gap: var(--spacing-sm);
+    }
+    
+    .mobile-card-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: var(--font-size-sm);
+    }
+    
+    .mobile-card-label {
+        font-weight: 600;
+        color: var(--gray-600);
+        font-size: var(--font-size-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .mobile-card-value {
+        color: var(--gray-800);
+        text-align: right;
+        flex: 1;
+        margin-left: var(--spacing-md);
+    }
+    
+    .mobile-card-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        margin-top: var(--spacing-md);
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--gray-100);
+    }
+    
+    .mobile-card-actions button {
+        flex: 1;
+        padding: var(--spacing-sm) var(--spacing-md);
+        border: 2px solid var(--gray-200);
+        border-radius: var(--border-radius-lg);
+        background: rgba(255, 255, 255, 0.8);
+        font-weight: 600;
+        font-size: var(--font-size-xs);
+        text-transform: uppercase;
+        transition: var(--transition-base);
+        min-height: 36px;
+    }
+    
+    .mobile-card-actions .edit-btn {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    
+    .mobile-card-actions .edit-btn:hover {
+        background: var(--primary-color);
+        color: white;
+    }
+    
+    .mobile-card-actions .delete-btn {
+        border-color: var(--error-color);
+        color: var(--error-color);
+    }
+    
+    .mobile-card-actions .delete-btn:hover {
+        background: var(--error-color);
+        color: white;
+    }
+    
+    /* Modal em mobile */
+    .modal-overlay {
+        padding: var(--spacing-md);
+        align-items: flex-end;
+    }
+    
+    .modal-content {
+        max-width: 100%;
+        max-height: 85vh;
+        width: 100%;
+        border-radius: var(--border-radius-2xl) var(--border-radius-2xl) 0 0;
+        animation: slideInUp 0.3s ease-out;
+    }
+    
+    .modal-body {
+        padding: var(--spacing-xl) var(--spacing-lg);
+    }
+    
+    .modal-footer {
+        padding: var(--spacing-lg);
+        gap: var(--spacing-sm);
+    }
+    
+    .modal-footer .btn {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    /* Formulário mobile */
+    .form-group {
+        margin-bottom: var(--spacing-lg);
+    }
+    
+    .form-control {
+        font-size: 16px; /* Previne zoom no iOS */
+        padding: var(--spacing-md) var(--spacing-lg);
+        border-radius: var(--border-radius-xl);
+    }
+    
+    /* Paginação mobile */
+    .pagination {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        align-items: center;
+        padding: var(--spacing-lg);
+    }
+    
+    .pagination-info {
+        order: 2;
+        text-align: center;
+    }
+    
+    .pagination-buttons {
+        order: 1;
+        gap: var(--spacing-md);
+    }
+    
+    .pagination-buttons button {
+        padding: var(--spacing-md) var(--spacing-lg);
+        font-size: var(--font-size-sm);
+        min-width: 80px;
+    }
+    
+    /* Notificações mobile */
+    .notification {
+        top: var(--spacing-lg);
+        right: var(--spacing-lg);
+        left: var(--spacing-lg);
+        max-width: none;
+    }
+}
+
+/* Mobile landscape (481px - 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+    /* Volta para tabela normal em landscape */
+    .table-wrapper {
+        display: block;
+    }
+    
+    .mobile-cards {
+        display: none;
+    }
+    
+    /* Ajusta padding da tabela */
+    th, td {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: var(--font-size-xs);
+    }
+    
+    .action-bar {
+        flex-direction: row;
+        align-items: center;
+    }
+    
+    .action-bar-buttons {
+        display: flex;
+        flex-wrap: wrap;
+    }
+}
+
+/* Tablets e dispositivos médios */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .table-wrapper {
+        display: block;
+    }
+    
+    .mobile-cards {
+        display: none;
+    }
+    
+    th, td {
+        padding: var(--spacing-md) var(--spacing-lg);
+    }
+    
+    .modal-content {
+        max-width: 70vw;
+    }
+}
+
+/* ===== UTILITÁRIOS RESPONSIVOS ===== */
+
+/* Visibilidade baseada em dispositivo */
+@media (max-width: 480px) {
+    .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 481px) {
+    .show-mobile { display: none !important; }
+}
+
+@media (min-width: 769px) {
+    .hide-desktop { display: none !important; }
+}
+
+@media (max-width: 768px) {
+    .show-desktop { display: none !important; }
+}
+
+/* ===== ANIMAÇÕES E TRANSIÇÕES RESPONSIVAS ===== */
+
+/* Reduz animações em dispositivos com preferência por menos movimento */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ===== MELHORIAS DE PERFORMANCE ===== */
+
+/* Otimizações para dispositivos touch */
+@media (hover: none) and (pointer: coarse) {
+    /* Remove hover effects em touch devices */
+    .btn:hover,
+    tbody tr:hover,
+    .close-button:hover {
+        transform: none;
+        background: inherit;
+    }
+    
+    /* Aumenta área de toque */
+    .btn,
+    button,
+    [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* Melhora a responsividade do scroll */
+    .table-wrapper,
+    .modal-content {
+        -webkit-overflow-scrolling: touch;
     }
 }

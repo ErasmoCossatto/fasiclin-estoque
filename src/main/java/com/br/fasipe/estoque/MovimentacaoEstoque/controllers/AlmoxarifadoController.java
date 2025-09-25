@@ -6,18 +6,17 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
-
 /**
  * Controller para gerenciar as requisições HTTP relacionadas a Almoxarifados.
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/almoxarifados")
-@CrossOrigin(origins = "http://localhost:8080", allowCredentials = "true")
+@CrossOrigin(origins = "*")
 public class AlmoxarifadoController {
 
     @Autowired
@@ -29,10 +28,19 @@ public class AlmoxarifadoController {
     @GetMapping
     public ResponseEntity<Page<Almoxarifado>> listarTodos(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("Listando almoxarifados - Página: {}, Tamanho: {}", page, size);
-        Page<Almoxarifado> almoxarifados = almoxarifadoService.findAllPaginated(page, size);
-        return ResponseEntity.ok(almoxarifados);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "ASC") String direction) {
+        log.info("Listando almoxarifados - Página: {}, Tamanho: {}, Ordenação: {}", page, size, sortBy);
+        
+        try {
+            Sort.Direction sortDirection = Sort.Direction.fromString(direction);
+            Page<Almoxarifado> almoxarifados = almoxarifadoService.findAllPaginated(page, size, sortBy, sortDirection);
+            return ResponseEntity.ok(almoxarifados);
+        } catch (Exception e) {
+            log.error("Erro ao listar almoxarifados: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     /**
@@ -41,9 +49,15 @@ public class AlmoxarifadoController {
     @GetMapping("/{id}")
     public ResponseEntity<Almoxarifado> buscarPorId(@PathVariable Integer id) {
         log.info("Buscando almoxarifado com ID: {}", id);
-        return almoxarifadoService.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        
+        try {
+            return almoxarifadoService.findById(id)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            log.error("Erro ao buscar almoxarifado ID {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     /**
@@ -52,8 +66,14 @@ public class AlmoxarifadoController {
     @PostMapping
     public ResponseEntity<Almoxarifado> criar(@Valid @RequestBody Almoxarifado almoxarifado) {
         log.info("Criando novo almoxarifado: {}", almoxarifado.getNome());
-        Almoxarifado novoAlmoxarifado = almoxarifadoService.save(almoxarifado);
-        return ResponseEntity.status(HttpStatus.CREATED).body(novoAlmoxarifado);
+        
+        try {
+            Almoxarifado novoAlmoxarifado = almoxarifadoService.save(almoxarifado);
+            return ResponseEntity.status(HttpStatus.CREATED).body(novoAlmoxarifado);
+        } catch (Exception e) {
+            log.error("Erro ao criar almoxarifado: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
     }
 
     /**
@@ -65,13 +85,18 @@ public class AlmoxarifadoController {
             @Valid @RequestBody Almoxarifado almoxarifado) {
         log.info("Atualizando almoxarifado ID: {}", id);
         
-        if (!almoxarifadoService.findById(id).isPresent()) {
-            return ResponseEntity.notFound().build();
-        }
+        try {
+            if (!almoxarifadoService.existsById(id)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        almoxarifado.setId(id);
-        Almoxarifado atualizado = almoxarifadoService.save(almoxarifado);
-        return ResponseEntity.ok(atualizado);
+            almoxarifado.setId(id);
+            Almoxarifado atualizado = almoxarifadoService.update(almoxarifado);
+            return ResponseEntity.ok(atualizado);
+        } catch (Exception e) {
+            log.error("Erro ao atualizar almoxarifado ID {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
     }
 
     /**
@@ -81,12 +106,17 @@ public class AlmoxarifadoController {
     public ResponseEntity<Void> remover(@PathVariable Integer id) {
         log.info("Removendo almoxarifado ID: {}", id);
         
-        if (!almoxarifadoService.findById(id).isPresent()) {
-            return ResponseEntity.notFound().build();
-        }
+        try {
+            if (!almoxarifadoService.existsById(id)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        almoxarifadoService.deleteById(id);
-        return ResponseEntity.noContent().build();
+            almoxarifadoService.deleteById(id);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Erro ao remover almoxarifado ID {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
 

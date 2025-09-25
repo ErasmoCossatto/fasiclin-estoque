@@ -3,17 +3,32 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Movimentação</title>
-    <!-- Importação de Fontes -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#007bff">
+    <meta name="description" content="Sistema de controle de movimentação de estoque - FasiClin">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="FasiClin Estoque">
+    <title>Dashboard de Movimentação - FasiClin</title>
+    
+    <!-- Preload para otimização -->
+    <link rel="preload" href="./assets/css/global.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="./assets/css/global.css"></noscript>
+    
+    <!-- Importação de Fontes com display swap para performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
+    
     <!-- Links para os arquivos de Estilo -->
     <link rel="stylesheet" href="./assets/css/global.css">
     <link rel="stylesheet" href="./assets/css/movimentacao.css">
     <link rel="stylesheet" href="./assets/css/responsive.css">
+    
+    <!-- Icons para PWA -->
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007bff'/><text x='50' y='58' font-family='sans-serif' font-size='30' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23007bff'/><text x='50' y='58' font-family='sans-serif' font-size='30' fill='white' text-anchor='middle' font-weight='bold'>FC</text></svg>">
 </head>
 
 <body>
@@ -36,12 +51,6 @@
                 <button id="add-movement-btn" class="btn btn-primary">
                     <span>+</span> Nova Movimentação
                 </button>
-                <div class="action-bar-buttons">
-                    <button class="icon-button" id="create-test-data-btn">Criar Dados Teste</button>
-                    <button class="icon-button" id="create-basic-data-btn">Criar Dados Básicos</button>
-                    <button class="icon-button">Filtro</button>
-                    <button class="icon-button">Download</button>
-                </div>
             </div>
 
             <!-- Indicador de Carregamento -->
@@ -68,6 +77,12 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- Versão Mobile - Cards -->
+                <div id="mobile-cards" class="mobile-cards" style="display: none;">
+                    <!-- Os cards serão carregados via JavaScript -->
+                </div>
+                
                 <!-- Paginação da Tabela -->
                 <div class="pagination">
                     <div class="pagination-info">
@@ -164,9 +179,35 @@
         </div>
     </div>
 
+    <!-- Container de Notificações Toast -->
+    <div id="notification-container" class="notification-container" aria-live="polite"></div>
+
     <!-- Links para os arquivos JavaScript -->
     <script src="./assets/js/ApiManager.js"></script>
     <script src="./assets/js/MovimentacaoManager.js"></script>
+    
+    <script>
+        // Detecta se é mobile e alterna entre tabela e cards
+        function checkMobileView() {
+            const isMobile = window.innerWidth <= 480;
+            const tableWrapper = document.querySelector('.table-wrapper');
+            const mobileCards = document.getElementById('mobile-cards');
+            
+            if (isMobile) {
+                tableWrapper.style.display = 'none';
+                mobileCards.style.display = 'block';
+                mobileCards.classList.add('mobile-cards');
+            } else {
+                tableWrapper.style.display = 'block';
+                mobileCards.style.display = 'none';
+                mobileCards.classList.remove('mobile-cards');
+            }
+        }
+        
+        // Executa na carga da página e no redimensionamento
+        window.addEventListener('load', checkMobileView);
+        window.addEventListener('resize', checkMobileView);
+    </script>
 </body>
 
 </html>

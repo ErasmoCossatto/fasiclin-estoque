@@ -132,11 +132,15 @@ public class EstoqueController {
      */
     @PostMapping
     public ResponseEntity<Estoque> criarEstoque(@RequestBody Estoque estoque) {
-        log.info("Criando novo estoque para produto ID: {}", estoque.getProduto().getId());
+        log.info("Criando novo estoque para produto ID: {}", estoque.getProduto() != null ? estoque.getProduto().getId() : "null");
         
-        Estoque estoqueSalvo = estoqueService.save(estoque);
-        
-        return ResponseEntity.ok(estoqueSalvo);
+        try {
+            Estoque estoqueSalvo = estoqueService.save(estoque);
+            return ResponseEntity.status(201).body(estoqueSalvo);
+        } catch (Exception e) {
+            log.error("Erro ao criar estoque: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**

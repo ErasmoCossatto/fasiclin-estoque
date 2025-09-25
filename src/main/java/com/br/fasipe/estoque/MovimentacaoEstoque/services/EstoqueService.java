@@ -16,6 +16,7 @@ import org.springframework.cache.annotation.CachePut;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Optional;
 
 
@@ -93,8 +94,13 @@ public class EstoqueService extends BaseService {
         log.info("Buscando estoques por produto: {}, Página: {}", idProduto, page);
         
         Pageable pageable = createDefaultPageable(page, size);
-        // Implementar método no repository se necessário
-        Page<Estoque> estoques = estoqueRepository.findAll(pageable);
+        List<Estoque> estoquesList = estoqueRepository.findByIdProduto(idProduto);
+        // Simular paginação manual já que o método retorna List
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), estoquesList.size());
+        List<Estoque> pageContent = estoquesList.subList(start, end);
+        
+        Page<Estoque> estoques = new org.springframework.data.domain.PageImpl<>(pageContent, pageable, estoquesList.size());
         
         logPerformanceInfo("Estoques por Produto", estoques, startTime);
         return estoques;
@@ -153,8 +159,14 @@ public class EstoqueService extends BaseService {
         log.info("Buscando estoques por lote: {}, Página: {}", idLote, page);
         
         Pageable pageable = createDefaultPageable(page, size);
-        // Implementar método no repository se necessário
-        Page<Estoque> estoques = estoqueRepository.findAll(pageable);
+        List<Estoque> estoquesList = estoqueRepository.findByIdLote(idLote);
+        
+        // Simular paginação manual
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), estoquesList.size());
+        List<Estoque> pageContent = estoquesList.subList(start, end);
+        
+        Page<Estoque> estoques = new org.springframework.data.domain.PageImpl<>(pageContent, pageable, estoquesList.size());
         
         logPerformanceInfo("Estoques por Lote", estoques, startTime);
         return estoques;

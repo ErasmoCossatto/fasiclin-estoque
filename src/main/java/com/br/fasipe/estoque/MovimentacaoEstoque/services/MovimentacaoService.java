@@ -1,6 +1,7 @@
 package com.br.fasipe.estoque.MovimentacaoEstoque.services;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao.TipoMovimentacao;
@@ -8,16 +9,32 @@ import com.br.fasipe.estoque.MovimentacaoEstoque.models.Estoque;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Usuario;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Setor;
 import com.br.fasipe.estoque.MovimentacaoEstoque.repository.MovimentacaoRepository;
+import com.br.fasipe.estoque.MovimentacaoEstoque.repository.EstoqueRepository;
+import com.br.fasipe.estoque.MovimentacaoEstoque.repository.UsuarioRepository;
+import com.br.fasipe.estoque.MovimentacaoEstoque.repository.SetorRepository;
+
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
+@Transactional
 public class MovimentacaoService {
 
     @Autowired
     private MovimentacaoRepository movimentacaoRepository;
+    
+    @Autowired
+    private EstoqueRepository estoqueRepository;
+    
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+    
+    @Autowired
+    private SetorRepository setorRepository;
 
     public List<Movimentacao> findAll() {
         try {
@@ -37,47 +54,142 @@ public class MovimentacaoService {
     }
 
     public Movimentacao insert(Movimentacao movimentacao) {
-        // Para desenvolvimento: criar entidades padrão se não fornecidas
-        if (movimentacao.getEstoque() == null) {
-            Estoque estoquePadrao = new Estoque();
-            estoquePadrao.setId(1); // ID padrão para desenvolvimento
-            movimentacao.setEstoque(estoquePadrao);
-        }
-        if (movimentacao.getUsuario() == null) {
-            Usuario usuarioPadrao = new Usuario();
-            usuarioPadrao.setId(1); // ID padrão para desenvolvimento
-            movimentacao.setUsuario(usuarioPadrao);
-        }
-        if (movimentacao.getSetorOrigem() == null) {
-            Setor setorPadrao = new Setor();
-            setorPadrao.setId(1); // ID padrão para desenvolvimento
-            movimentacao.setSetorOrigem(setorPadrao);
-        }
-        if (movimentacao.getSetorDestino() == null) {
-            Setor setorPadrao = new Setor();
-            setorPadrao.setId(2); // ID padrão diferente para desenvolvimento
-            movimentacao.setSetorDestino(setorPadrao);
+        log.info("Inserindo nova movimentação - Tipo: {}, Quantidade: {}", 
+                movimentacao.getTipoMovimentacao(), movimentacao.getQuantidade());
+                
+        // Validações básicas
+        if (movimentacao.getQuantidade() == null || movimentacao.getQuantidade() <= 0) {
+            throw new IllegalArgumentException("Quantidade deve ser maior que zero");
         }
         
-        return movimentacaoRepository.save(movimentacao);
+        if (movimentacao.getDataMovimentacao() == null) {
+            movimentacao.setDataMovimentacao(LocalDate.now());
+        }
+        
+        // Validar se as entidades relacionadas existem
+        validateRelatedEntities(movimentacao);
+        
+        try {
+            Movimentacao novaMovimentacao = movimentacaoRepository.save(movimentacao);
+            log.info("Movimentação inserida com sucesso - ID: {}", novaMovimentacao.getId());
+            return novaMovimentacao;
+        } catch (Exception e) {
+            log.error("Erro ao inserir movimentação: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro ao registrar movimentação: " + e.getMessage());
+        }
+    }
+    
+    private void validateRelatedEntities(Movimentacao movimentacao) {
+        // Validar estoque
+        if (movimentacao.getEstoque() == null || movimentacao.getEstoque().getId() == null) {
+            throw new IllegalArgumentException("Estoque deve ser informado");
+        }
+        
+        // Buscar estoque completo para verificar se existe
+        Optional<Estoque> estoque = estoqueRepository.findById(movimentacao.getEstoque().getId());
+        if (estoque.isEmpty()) {
+            throw new IllegalArgumentException("Estoque não encontrado");
+        }
+        movimentacao.setEstoque(estoque.get());
+        
+        // Validar usuário
+        if (movimentacao.getUsuario() == null || movimentacao.getUsuario().getId() == null) {
+            throw new IllegalArgumentException("Usuário deve ser informado");
+        }
+        
+        Optional<Usuario> usuario = usuarioRepository.findById(movimentacao.getUsuario().getId());
+        if (usuario.isEmpty()) {
+            throw new IllegalArgumentException("Usuário não encontrado");
+        }
+        movimentacao.setUsuario(usuario.get());
+        
+        // Validar setor origem
+        if (movimentacao.getSetorOrigem() == null || movimentacao.getSetorOrigem().getId() == null) {
+            throw new IllegalArgumentException("Setor de origem deve ser informado");
+        }
+        
+        Optional<Setor> setorOrigem = setorRepository.findById(movimentacao.getSetorOrigem().getId());
+        if (setorOrigem.isEmpty()) {
+            throw new IllegalArgumentException("Setor de origem não encontrado");
+        }
+        movimentacao.setSetorOrigem(setorOrigem.get());
+        
+        // Validar setor destino
+        if (movimentacao.getSetorDestino() == null || movimentacao.getSetorDestino().getId() == null) {
+            throw new IllegalArgumentException("Setor de destino deve ser informado");
+        }
+        
+        Optional<Setor> setorDestino = setorRepository.findById(movimentacao.getSetorDestino().getId());
+        if (setorDestino.isEmpty()) {
+            throw new IllegalArgumentException("Setor de destino não encontrado");
+        }
+        movimentacao.setSetorDestino(setorDestino.get());
+        
+        // Validar se setor origem é diferente do destino
+        if (movimentacao.getSetorOrigem().getId().equals(movimentacao.getSetorDestino().getId())) {
+            throw new IllegalArgumentException("Setor de origem deve ser diferente do setor de destino");
+        }
     }
 
     public Movimentacao update(Integer id, Movimentacao movimentacao) {
+        log.info("Atualizando movimentação ID: {}", id);
+        
         Movimentacao entity = findById(id);
+        
+        // Validar se as entidades relacionadas existem antes de atualizar
+        validateRelatedEntities(movimentacao);
+        
         updateData(entity, movimentacao);
-        return movimentacaoRepository.save(entity);
+        
+        try {
+            Movimentacao movimentacaoAtualizada = movimentacaoRepository.save(entity);
+            log.info("Movimentação atualizada com sucesso - ID: {}", id);
+            return movimentacaoAtualizada;
+        } catch (Exception e) {
+            log.error("Erro ao atualizar movimentação ID {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Erro ao atualizar movimentação: " + e.getMessage());
+        }
     }
 
     public void delete(Integer id) {
+        log.info("Removendo movimentação ID: {}", id);
+        
+        // Verifica se existe antes de tentar deletar
         findById(id);
-        movimentacaoRepository.deleteById(id);
+        
+        try {
+            movimentacaoRepository.deleteById(id);
+            log.info("Movimentação removida com sucesso - ID: {}", id);
+        } catch (Exception e) {
+            log.error("Erro ao remover movimentação ID {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Erro ao remover movimentação: " + e.getMessage());
+        }
     }
 
     private void updateData(Movimentacao entity, Movimentacao movimentacao) {
-        entity.setTipoMovimentacao(movimentacao.getTipoMovimentacao());
-        entity.setQuantidade(movimentacao.getQuantidade());
-        entity.setDataMovimentacao(movimentacao.getDataMovimentacao());
-        // Note: Relacionamentos com estoque, usuário e setores devem ser preservados
+        if (movimentacao.getTipoMovimentacao() != null) {
+            entity.setTipoMovimentacao(movimentacao.getTipoMovimentacao());
+        }
+        if (movimentacao.getQuantidade() != null && movimentacao.getQuantidade() > 0) {
+            entity.setQuantidade(movimentacao.getQuantidade());
+        }
+        if (movimentacao.getDataMovimentacao() != null) {
+            entity.setDataMovimentacao(movimentacao.getDataMovimentacao());
+        }
+        
+        // Atualizar relacionamentos se fornecidos
+        if (movimentacao.getEstoque() != null) {
+            entity.setEstoque(movimentacao.getEstoque());
+        }
+        if (movimentacao.getUsuario() != null) {
+            entity.setUsuario(movimentacao.getUsuario());
+        }
+        if (movimentacao.getSetorOrigem() != null) {
+            entity.setSetorOrigem(movimentacao.getSetorOrigem());
+        }
+        if (movimentacao.getSetorDestino() != null) {
+            entity.setSetorDestino(movimentacao.getSetorDestino());
+        }
     }
 
     public List<Movimentacao> findByQuantidade(Integer quantidade) {

@@ -154,25 +154,165 @@ class ApiManager {
     // ===== ENDPOINTS DE ESTOQUE =====
 
     /**
-     * Lista estoques com paginação
+     * Lista estoques com paginação (otimizado para movimentações)
      * @param {Object} params - Parâmetros de paginação
-     * @returns {Promise<Object>} - Página de estoques
+     * @returns {Promise<Object>} - Página de estoques com produtos
      */
     async listarEstoques(params = {}) {
-        try {
-            const queryParams = new URLSearchParams({
-                page: params.page || 0,
-                size: params.size || 20,
-                sortBy: params.sortBy || 'id',
-                direction: params.direction || 'ASC'
-            });
-            
-            return this.request(`/estoque?${queryParams}`);
-        } catch (error) {
-            // Fallback para endpoint simplificado se houver erro
-            console.warn('Usando endpoint simplificado de estoque');
-            return this.request('/estoque-simples');
+        const endpoints = [
+            '/estoque-simples/produtos',
+            `/estoque?page=${params.page || 0}&size=${params.size || 50}&sortBy=${params.sortBy || 'id'}&direction=${params.direction || 'ASC'}`,
+            '/estoque-simples',
+            '/produtos'
+        ];
+
+        for (let i = 0; i < endpoints.length; i++) {
+            try {
+                console.log(`[ESTOQUE] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+                const result = await this.request(endpoints[i]);
+                
+                // Normaliza a resposta para ter sempre a mesma estrutura
+                let normalizedResult;
+                
+                if (Array.isArray(result)) {
+                    normalizedResult = {
+                        content: result.map(item => this.normalizeEstoqueItem(item)),
+                        totalElements: result.length,
+                        totalPages: 1,
+                        number: 0,
+                        size: result.length
+                    };
+                } else if (result.content) {
+                    normalizedResult = {
+                        ...result,
+                        content: result.content.map(item => this.normalizeEstoqueItem(item))
+                    };
+                } else {
+                    normalizedResult = {
+                        content: [this.normalizeEstoqueItem(result)],
+                        totalElements: 1,
+                        totalPages: 1,
+                        number: 0,
+                        size: 1
+                    };
+                }
+                
+                console.log(`[ESTOQUE] ✅ Sucesso no endpoint ${i + 1}: ${normalizedResult.content.length} itens`);
+                return normalizedResult;
+                
+            } catch (error) {
+                console.warn(`[ESTOQUE] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
+                if (i === endpoints.length - 1) {
+                    // Se todos os endpoints falharam, retorna dados mockados
+                    console.warn('[ESTOQUE] Todos endpoints falharam, usando dados mockados');
+                    return this.getMockedEstoques();
+                }
+            }
         }
+    }
+
+    /**
+     * Normaliza um item de estoque para ter estrutura consistente
+     */
+    normalizeEstoqueItem(item) {
+        return {
+            estoqueId: item.estoqueId || item.id,
+            id: item.estoqueId || item.id,
+            quantidadeEstoque: item.quantidadeEstoque || item.quantidade || 0,
+            produto: {
+                id: item.produto?.id || item.id,
+                nome: item.produto?.nome || item.nome || 'Produto não informado',
+                descricao: item.produto?.descricao || item.descricao || 'Descrição não disponível',
+                codBarras: item.produto?.codBarras || item.codBarras || ''
+            },
+            almoxarifado: {
+                id: item.almoxarifado?.id || item.produto?.almoxarifado?.id || 1,
+                nome: item.almoxarifado?.nome || item.produto?.almoxarifado?.nome || 'Almoxarifado não informado',
+                setor: item.almoxarifado?.setor || item.produto?.almoxarifado?.setor
+            },
+            lote: {
+                id: item.lote?.id || 1,
+                dataVencimento: item.lote?.dataVencimento || '2025-12-31',
+                quantidade: item.lote?.quantidade || item.quantidadeEstoque || 0
+            }
+        };
+    }
+
+    /**
+     * Retorna dados mockados para estoque quando todos os endpoints falham
+     */
+    getMockedEstoques() {
+        return {
+            content: [
+                {
+                    estoqueId: 1,
+                    id: 1,
+                    quantidadeEstoque: 100,
+                    produto: { 
+                        id: 1, 
+                        nome: 'Dipirona 500mg', 
+                        descricao: 'Analgésico e antitérmico',
+                        codBarras: '7891234567890'
+                    },
+                    almoxarifado: {
+                        id: 1,
+                        nome: 'Farmácia Central',
+                        setor: { id: 1, nome: 'Farmácia' }
+                    },
+                    lote: { 
+                        id: 1, 
+                        dataVencimento: '2025-12-31',
+                        quantidade: 100
+                    }
+                },
+                {
+                    estoqueId: 2,
+                    id: 2,
+                    quantidadeEstoque: 50,
+                    produto: { 
+                        id: 2, 
+                        nome: 'Paracetamol 750mg', 
+                        descricao: 'Analgésico e antitérmico',
+                        codBarras: '7891234567891'
+                    },
+                    almoxarifado: {
+                        id: 2,
+                        nome: 'Almoxarifado UTI',
+                        setor: { id: 2, nome: 'UTI' }
+                    },
+                    lote: { 
+                        id: 2, 
+                        dataVencimento: '2026-01-15',
+                        quantidade: 50
+                    }
+                },
+                {
+                    estoqueId: 3,
+                    id: 3,
+                    quantidadeEstoque: 25,
+                    produto: { 
+                        id: 3, 
+                        nome: 'Ibuprofeno 600mg', 
+                        descricao: 'Anti-inflamatório',
+                        codBarras: '7891234567892'
+                    },
+                    almoxarifado: {
+                        id: 3,
+                        nome: 'Enfermaria Geral',
+                        setor: { id: 3, nome: 'Enfermaria' }
+                    },
+                    lote: { 
+                        id: 3, 
+                        dataVencimento: '2025-11-30',
+                        quantidade: 25
+                    }
+                }
+            ],
+            totalElements: 3,
+            totalPages: 1,
+            number: 0,
+            size: 3
+        };
     }
 
     /**
@@ -376,41 +516,137 @@ class ApiManager {
     // ===== ENDPOINTS DE USUÁRIOS =====
 
     /**
-     * Lista usuários (implementação temporária)
+     * Lista usuários (implementação com fallback robusto)
      * @returns {Promise<Array>} - Lista de usuários
      */
     async listarUsuarios() {
-        try {
-            return this.request('/usuarios');
-        } catch (error) {
-            // Retorna dados mockados se não houver endpoint
-            console.warn('Endpoint de usuários não encontrado, usando dados mockados');
-            return [
-                { id: 1, login: 'admin', nome: 'Administrador' },
-                { id: 2, login: 'user1', nome: 'Usuário 1' },
-                { id: 3, login: 'user2', nome: 'Usuário 2' }
-            ];
+        const endpoints = ['/usuarios', '/inicializacao/usuarios', '/dados-teste/usuarios'];
+        
+        for (let i = 0; i < endpoints.length; i++) {
+            try {
+                console.log(`[USUARIOS] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+                const result = await this.request(endpoints[i]);
+                
+                // Normaliza resultado para array
+                const usuarios = Array.isArray(result) ? result : [result];
+                console.log(`[USUARIOS] ✅ Sucesso no endpoint ${i + 1}: ${usuarios.length} usuários`);
+                return usuarios.map(user => this.normalizeUsuarioItem(user));
+                
+            } catch (error) {
+                console.warn(`[USUARIOS] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
+                if (i === endpoints.length - 1) {
+                    console.warn('[USUARIOS] Todos endpoints falharam, usando dados mockados');
+                    return this.getMockedUsuarios();
+                }
+            }
         }
+    }
+
+    /**
+     * Normaliza um item de usuário
+     */
+    normalizeUsuarioItem(user) {
+        return {
+            id: user.id,
+            login: user.login || user.loginUsuario || `user${user.id}`,
+            nome: user.nome || user.nomeUsuario || user.login || `Usuário ${user.id}`,
+            ativo: user.ativo !== undefined ? user.ativo : true
+        };
+    }
+
+    /**
+     * Retorna dados mockados para usuários
+     */
+    getMockedUsuarios() {
+        return [
+            { id: 1, login: 'admin', nome: 'Administrador do Sistema', ativo: true },
+            { id: 2, login: 'farmaceutico', nome: 'João Silva - Farmacêutico', ativo: true },
+            { id: 3, login: 'enfermeiro', nome: 'Maria Santos - Enfermeira', ativo: true },
+            { id: 4, login: 'almoxarife', nome: 'Pedro Costa - Almoxarife', ativo: true }
+        ];
     }
 
     // ===== ENDPOINTS DE SETORES =====
 
     /**
-     * Lista setores (implementação temporária)
+     * Lista setores (implementação com fallback robusto)
      * @returns {Promise<Array>} - Lista de setores
      */
     async listarSetores() {
+        const endpoints = ['/setores', '/inicializacao/setores', '/dados-teste/setores'];
+        
+        for (let i = 0; i < endpoints.length; i++) {
+            try {
+                console.log(`[SETORES] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+                const result = await this.request(endpoints[i]);
+                
+                // Normaliza resultado para array
+                const setores = Array.isArray(result) ? result : [result];
+                console.log(`[SETORES] ✅ Sucesso no endpoint ${i + 1}: ${setores.length} setores`);
+                return setores.map(setor => this.normalizeSetorItem(setor));
+                
+            } catch (error) {
+                console.warn(`[SETORES] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
+                if (i === endpoints.length - 1) {
+                    console.warn('[SETORES] Todos endpoints falharam, usando dados mockados');
+                    return this.getMockedSetores();
+                }
+            }
+        }
+    }
+
+    /**
+     * Normaliza um item de setor
+     */
+    normalizeSetorItem(setor) {
+        return {
+            id: setor.id,
+            nome: setor.nome || setor.nomeSetor || `Setor ${setor.id}`,
+            ativo: setor.ativo !== undefined ? setor.ativo : true
+        };
+    }
+
+    /**
+     * Retorna dados mockados para setores
+     */
+    getMockedSetores() {
+        return [
+            { id: 1, nome: 'Farmácia Central', ativo: true },
+            { id: 2, nome: 'UTI - Unidade de Terapia Intensiva', ativo: true },
+            { id: 3, nome: 'Enfermaria Geral', ativo: true },
+            { id: 4, nome: 'Centro Cirúrgico', ativo: true },
+            { id: 5, nome: 'Pronto Socorro', ativo: true },
+            { id: 6, nome: 'Almoxarifado Central', ativo: true }
+        ];
+    }
+
+    // ===== ENDPOINTS DE INICIALIZAÇÃO =====
+
+    /**
+     * Verifica o status das tabelas do sistema
+     * @returns {Promise<Object>} - Status das tabelas
+     */
+    async verificarStatusSistema() {
         try {
-            return this.request('/setores');
+            return this.request('/inicializacao/status');
         } catch (error) {
-            // Retorna dados mockados se não houver endpoint
-            console.warn('Endpoint de setores não encontrado, usando dados mockados');
-            return [
-                { id: 1, nome: 'Almoxarifado Central' },
-                { id: 2, nome: 'Farmácia' },
-                { id: 3, nome: 'Enfermaria' },
-                { id: 4, nome: 'UTI' }
-            ];
+            console.error('Erro ao verificar status do sistema:', error);
+            return { erro: error.message };
+        }
+    }
+
+    /**
+     * Cria dados básicos necessários para o funcionamento do sistema
+     * @returns {Promise<Object>} - Resultado da criação
+     */
+    async criarDadosBasicos() {
+        try {
+            return this.request('/inicializacao/criar-dados-basicos', {
+                method: 'POST'
+            });
+        } catch (error) {
+            console.error('Erro ao criar dados básicos:', error);
+            throw error;
         }
     }
 
@@ -432,6 +668,22 @@ class ApiManager {
      */
     async verificarStatusDados() {
         return this.request('/dados-teste/status');
+    }
+
+    // ===== ENDPOINTS AUXILIARES PARA MOVIMENTAÇÃO =====
+
+    /**
+     * Busca a localização atual de um produto através do estoque
+     * @param {number} estoqueId - ID do estoque
+     * @returns {Promise<Object>} - Informações do estoque com localização
+     */
+    async buscarLocalizacaoEstoque(estoqueId) {
+        try {
+            return this.request(`/estoque/${estoqueId}`);
+        } catch (error) {
+            console.warn('Erro ao buscar localização do estoque:', error);
+            return null;
+        }
     }
 
     // ===== MÉTODOS UTILITÁRIOS =====

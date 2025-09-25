@@ -21,6 +21,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api/movimentacoes")
+@CrossOrigin(origins = "*")
 public class MovimentacaoController {
 
     @Autowired
