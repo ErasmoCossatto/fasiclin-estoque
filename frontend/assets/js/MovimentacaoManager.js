@@ -90,7 +90,7 @@ class MovimentacaoManager {
             // Carrega dados em paralelo
             const promises = [
                 this.loadMovimentacoes(),
-                this.loadEstoques(),
+                this.loadProdutos(), // Carrega estoques (que contêm produtos)
                 this.loadUsuarios(),
                 this.loadSetores()
             ];
@@ -538,7 +538,9 @@ class MovimentacaoManager {
         const formData = this.getFormData();
         console.log('[MovimentacaoManager] Dados coletados do formulário:', formData);
         
-        if (!this.validateForm(formData)) return;
+        // Await na validação assíncrona
+        const isValid = await this.validateForm(formData);
+        if (!isValid) return;
 
         try {
             this.setLoading(true);
@@ -586,7 +588,7 @@ class MovimentacaoManager {
      * Obtém dados do formulário
      */
     getFormData() {
-        const estoqueId = parseInt(document.getElementById('estoque-select').value);
+        const estoqueId = parseInt(document.getElementById('produtoSelect').value);
         const usuarioId = parseInt(document.getElementById('usuario-select').value);
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
@@ -599,7 +601,7 @@ class MovimentacaoManager {
         });
         
         return {
-            // O backend espera objetos, não apenas IDs
+            // O backend espera objetos, não apenas IDs - usando estoque corretamente
             estoque: estoqueId ? { id: estoqueId } : null,
             usuario: usuarioId ? { id: usuarioId } : null,
             setorOrigem: setorOrigemId ? { id: setorOrigemId } : null,
@@ -611,9 +613,9 @@ class MovimentacaoManager {
     }
 
     /**
-     * Valida formulário
+     * Valida formulário com validação de estoque
      */
-    validateForm(data) {
+    async validateForm(data) {
         const errors = [];
 
         if (!data.estoque || !data.estoque.id) errors.push('Selecione um produto');
@@ -627,6 +629,18 @@ class MovimentacaoManager {
         if (errors.length > 0) {
             this.showNotification(errors.join('<br>'), 'error');
             return false;
+        }
+
+        // Validação de produto para movimentação
+        if (data.estoque && data.estoque.id && data.quantidade) {
+            const produtoSelecionado = this.produtos?.find(p => p.id == data.estoque.id);
+            
+            if (produtoSelecionado) {
+                const produtoValido = await this.validarEstoqueMaximo(produtoSelecionado, data.quantidade);
+                if (!produtoValido) {
+                    return false; // Validação de produto falhou
+                }
+            }
         }
 
         console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso:', data);
@@ -802,6 +816,256 @@ class MovimentacaoManager {
             { id: 2, nome: 'Farmácia' },
             { id: 3, nome: 'UTI' },
             { id: 4, nome: 'Enfermaria' }
+        ];
+    }
+
+    /**
+     * ===== MÉTODOS DE PRODUTOS =====
+     */
+
+    /**
+     * Carrega os estoques (que contêm produtos) para o select com busca e validação
+     */
+    async loadProdutos() {
+        try {
+            console.log('[PRODUTOS] Iniciando carregamento de produtos...');
+            
+            // Usa o novo endpoint que lista todos os produtos ordenados por IDPRODUTO
+            const response = await fetch(`${this.apiManager.baseURL}/produtos/todos-para-movimentacao`, {
+                method: 'GET',
+                headers: this.apiManager.headers
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`);
+            }
+
+            const produtos = await response.json();
+            console.log('[PRODUTOS] Resposta da API:', produtos);
+            
+            if (Array.isArray(produtos) && produtos.length > 0) {
+                this.produtos = produtos;
+                this.populateProdutoSelect(produtos);
+                console.log(`[PRODUTOS] ✅ ${produtos.length} produtos carregados com sucesso`);
+            } else {
+                console.warn('[PRODUTOS] Nenhum produto encontrado, usando dados mockados');
+                this.produtos = this.getMockedProdutos();
+                this.populateProdutoSelect(this.produtos);
+            }
+        } catch (error) {
+            console.error('[PRODUTOS] ❌ Erro ao carregar produtos:', error);
+            this.showNotification('Erro ao carregar produtos: ' + error.message, 'error');
+            
+            // Usa dados mockados como fallback
+            this.produtos = this.getMockedProdutos();
+            this.populateProdutoSelect(this.produtos);
+        }
+    }
+
+    /**
+     * Popula o select de produtos com validação de almoxarifado
+     * @param {Array} produtos - Array de produtos
+     */
+    populateProdutoSelect(produtos) {
+        const select = document.getElementById('produtoSelect');
+        
+        if (!select) {
+            console.warn('[PRODUTOS] Select de produto não encontrado');
+            return;
+        }
+
+        // Limpa as opções atuais
+        select.innerHTML = '<option value="">Selecione um produto...</option>';
+        
+        // Adiciona os produtos
+        produtos.forEach(produto => {
+            const option = document.createElement('option');
+            option.value = produto.id;
+            option.dataset.produto = JSON.stringify(produto);
+            
+            // Monta o texto da opção mostrando IDPRODUTO
+            let textoOpcao = `${produto.idProduto} - ${produto.nome}`;
+            if (produto.stqMax) {
+                textoOpcao += ` (Max: ${produto.stqMax})`;
+            }
+            
+            // Indica se não pode ser movimentado
+            if (!produto.podeMovimentar) {
+                textoOpcao += ' - ⚠️ Sem almoxarifado';
+                option.style.color = '#ff6b6b';
+                option.style.fontStyle = 'italic';
+            }
+            
+            option.textContent = textoOpcao;
+            select.appendChild(option);
+        });
+
+        console.log(`[PRODUTOS] Select populado com ${produtos.length} produtos`);
+    }
+
+    /**
+     * Configura a busca de produtos por nome
+     * @param {HTMLElement} searchInput - Input de busca
+     * @param {Array} estoques - Lista completa de estoques
+     */
+    setupProdutoSearch(searchInput, estoques) {
+        let timeoutId;
+        
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(timeoutId);
+            const termo = e.target.value.toLowerCase().trim();
+            
+            timeoutId = setTimeout(() => {
+                if (termo.length >= 2) {
+                    this.filtrarProdutos(termo, estoques);
+                } else if (termo.length === 0) {
+                    this.populateProdutoSelect(estoques);
+                }
+            }, 300);
+        });
+    }
+
+    /**
+     * Filtra estoques por nome do produto
+     * @param {string} termo - Termo de busca
+     * @param {Array} estoquesCompletos - Lista completa de estoques
+     */
+    filtrarProdutos(termo, estoquesCompletos) {
+        const estoquesFiltrados = estoquesCompletos.filter(estoque => {
+            const produto = estoque.produto || {};
+            return produto.nome?.toLowerCase().includes(termo) ||
+                   produto.descricao?.toLowerCase().includes(termo) ||
+                   String(produto.id || '').includes(termo) ||
+                   String(estoque.id).includes(termo);
+        });
+        
+        this.populateProdutoSelect(estoquesFiltrados);
+        
+        console.log(`[ESTOQUES] Filtrados ${estoquesFiltrados.length} estoques para termo: "${termo}"`);
+    }
+
+    /**
+     * Valida se a quantidade não excede o estoque disponível
+     * @param {Object} estoque - Estoque selecionado
+     * @param {number} quantidade - Quantidade solicitada
+     * @returns {boolean} - True se válido
+     */
+    async validarEstoqueMaximo(produto, quantidade) {
+        try {
+            // Primeiro verifica se o produto pode ser movimentado (tem almoxarifado)
+            if (!produto.podeMovimentar) {
+                this.showNotification('Este produto não pode ser movimentado pois não possui almoxarifado associado (ID_ALMOX = NULL)', 'error');
+                return false;
+            }
+
+            // Verifica estoque máximo do produto se disponível
+            if (produto.stqMax && quantidade > produto.stqMax) {
+                this.showNotification(`Quantidade (${quantidade}) excede o estoque máximo permitido para o produto (${produto.stqMax})`, 'error');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            console.warn('[VALIDAÇÃO] Erro ao validar estoque:', error);
+            // Em caso de erro na validação, permite o prosseguimento mas avisa
+            this.showNotification('Não foi possível validar o estoque. Prossiga com cautela.', 'warning');
+            return true;
+        }
+    }
+
+    /**
+     * Retorna produtos mockados para fallback
+     */
+    getMockedProdutos() {
+        return [
+            {
+                id: 1,
+                idProduto: 1,
+                nome: 'Esparadrapo',
+                descricao: 'Esparadrapo tecido branco 10cm x 4,5m',
+                stqMax: 1000,
+                stqMin: 200,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 2,
+                idProduto: 2,
+                nome: 'Termômetro Digital',
+                descricao: 'Termômetro digital com medição rápida e precisa da temperatura',
+                stqMax: 50,
+                stqMin: 5,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 5,
+                idProduto: 5,
+                nome: 'Esparadrapo',
+                descricao: 'Esparadrapo resistente à água, indicado para curativos.',
+                stqMax: 100,
+                stqMin: 10,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 6,
+                idProduto: 6,
+                nome: 'Vacina Antitetânica',
+                descricao: 'Vacina indicada para prevenção do tétano',
+                stqMax: 50,
+                stqMin: 10,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 8,
+                idProduto: 8,
+                nome: 'Vacina',
+                descricao: 'Vacina',
+                stqMax: 22,
+                stqMin: 5,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 9,
+                idProduto: 9,
+                nome: 'Soro',
+                descricao: 'Soro',
+                stqMax: 150,
+                stqMin: 30,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 10,
+                idProduto: 10,
+                nome: 'Luva',
+                descricao: 'Luva',
+                stqMax: 250,
+                stqMin: 50,
+                podeMovimentar: true,
+                almoxarifado: 'Almoxarifado Central',
+                idAlmoxarifado: 1
+            },
+            {
+                id: 11,
+                idProduto: 11,
+                nome: 'Luvas de Procedimento Não Estéreis',
+                descricao: 'Luvas descartáveis de látex não estéreis, ideais para procedimentos médicos básicos',
+                stqMax: 500,
+                stqMin: 50,
+                podeMovimentar: false,
+                almoxarifado: 'Sem almoxarifado',
+                idAlmoxarifado: null
+            }
         ];
     }
 

@@ -53,6 +53,26 @@ public class ProdutoController {
     }
 
     /**
+     * Lista todos os produtos ordenados por IDPRODUTO para movimentação
+     * Incluí produtos com ID_ALMOX NULL mas não permite movimentá-los
+     */
+    @GetMapping("/todos-para-movimentacao")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> listarTodosParaMovimentacao() {
+        try {
+            log.info("Listando todos os produtos ordenados por IDPRODUTO para movimentação");
+            
+            java.util.List<java.util.Map<String, Object>> produtos = produtoService.buscarTodosParaMovimentacao();
+            
+            log.info("Produtos encontrados para movimentação: {}", produtos.size());
+            return ResponseEntity.ok(produtos);
+            
+        } catch (Exception e) {
+            log.error("Erro ao listar produtos para movimentação: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
      * Endpoint de teste simples para diagnóstico
      */
     @GetMapping("/test")
@@ -233,5 +253,59 @@ public class ProdutoController {
         long total = produtoService.count();
         
         return ResponseEntity.ok(total);
+    }
+
+    /**
+     * Busca produtos por nome (para autocompletar)
+     * Endpoint para busca dinâmica de produtos
+     */
+    @GetMapping("/buscar-por-nome")
+    public ResponseEntity<java.util.List<Produto>> buscarPorNome(@RequestParam String nome) {
+        log.info("Buscando produtos por nome: {}", nome);
+        
+        try {
+            java.util.List<Produto> produtos = produtoService.buscarPorNomeContendo(nome);
+            return ResponseEntity.ok(produtos);
+        } catch (Exception e) {
+            log.error("Erro ao buscar produtos por nome: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Verifica disponibilidade de estoque para um produto
+     * Endpoint CRÍTICO para validação de estoque antes de movimentações
+     */
+    @GetMapping("/{id}/verificar-estoque")
+    public ResponseEntity<java.util.Map<String, Object>> verificarEstoque(
+            @PathVariable Integer id, 
+            @RequestParam Integer quantidade) {
+        log.info("Verificando estoque para produto ID: {}, quantidade: {}", id, quantidade);
+        
+        try {
+            java.util.Map<String, Object> resultado = produtoService.verificarDisponibilidadeEstoque(id, quantidade);
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            log.error("Erro ao verificar estoque: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Busca produtos por IDPRODUTO (campo específico do banco)
+     * Endpoint para busca pelo campo IDPRODUTO da tabela
+     */
+    @GetMapping("/por-idproduto/{idProduto}")
+    public ResponseEntity<Produto> buscarPorIdProduto(@PathVariable Long idProduto) {
+        log.info("Buscando produto por IDPRODUTO: {}", idProduto);
+        
+        try {
+            Optional<Produto> produto = produtoService.buscarPorIdProduto(idProduto);
+            return produto.map(ResponseEntity::ok)
+                         .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            log.error("Erro ao buscar por IDPRODUTO: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

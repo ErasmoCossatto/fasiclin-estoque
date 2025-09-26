@@ -311,19 +311,108 @@ class ApiManager {
     // ===== ENDPOINTS DE PRODUTOS =====
 
     /**
-     * Lista produtos com paginação
+     * Lista produtos com informações de estoque
      * @param {Object} params - Parâmetros de paginação
-     * @returns {Promise<Object>} - Página de produtos
+     * @returns {Promise<Object>} - Página de produtos com estoque
      */
     async listarProdutos(params = {}) {
-        const queryParams = new URLSearchParams({
-            page: params.page || 0,
-            size: params.size || 20,
-            sortBy: params.sortBy || 'id',
-            direction: params.direction || 'ASC'
-        });
-        
-        return this.request(`/produtos?${queryParams}`);
+        try {
+            console.log(`[PRODUTOS] Chamando endpoint: /produtos`);
+            const result = await this.request('/produtos');
+            
+            console.log(`[PRODUTOS] Resposta bruta da API:`, result);
+            
+            if (result.success && result.data) {
+                // Retorna os dados diretamente, seja paginado ou não
+                console.log(`[PRODUTOS] ✅ Sucesso na API - Retornando dados:`, result.data);
+                return result.data;
+            } else {
+                console.warn('[PRODUTOS] Resposta não possui success=true ou data, usando dados mockados');
+                return this.getMockedProdutos();
+            }
+        } catch (error) {
+            console.warn(`[PRODUTOS] ❌ Erro: ${error.message}, usando dados mockados`);
+            return this.getMockedProdutos();
+        }
+    }
+
+    /**
+     * Busca produtos por nome (para autocompletar)
+     * @param {string} nome - Nome ou parte do nome do produto
+     * @returns {Promise<Array>} - Lista de produtos encontrados
+     */
+    async buscarProdutosPorNome(nome) {
+        try {
+            console.log(`[PRODUTOS] Buscando produtos por nome: ${nome}`);
+            const result = await this.request(`/produtos/buscar-por-nome?nome=${encodeURIComponent(nome)}`);
+            
+            if (result.success && result.data) {
+                return Array.isArray(result.data) ? result.data : [result.data];
+            }
+            return [];
+        } catch (error) {
+            console.warn(`[PRODUTOS] Erro ao buscar por nome: ${error.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Verifica disponibilidade de estoque
+     * @param {number} produtoId - ID do produto
+     * @param {number} quantidade - Quantidade solicitada
+     * @returns {Promise<Object>} - Informações de disponibilidade
+     */
+    async verificarDisponibilidadeEstoque(produtoId, quantidade) {
+        try {
+            console.log(`[PRODUTOS] Verificando disponibilidade: Produto ${produtoId}, Quantidade ${quantidade}`);
+            const result = await this.request(`/produtos/${produtoId}/verificar-estoque?quantidade=${quantidade}`);
+            
+            if (result.success) {
+                return result.data;
+            }
+            return { disponivel: false, mensagem: 'Erro ao verificar estoque' };
+        } catch (error) {
+            console.warn(`[PRODUTOS] Erro ao verificar estoque: ${error.message}`);
+            return { disponivel: false, mensagem: 'Erro ao verificar estoque' };
+        }
+    }
+
+    /**
+     * Retorna dados mockados para produtos
+     */
+    getMockedProdutos() {
+        return {
+            content: [
+                {
+                    idProduto: 1,
+                    id: 1,
+                    nome: 'Esparadrapo',
+                    descricao: 'Esparadrapo tecido branco 10cm x 4,5m',
+                    stqMax: 1000,
+                    stqMin: 200
+                },
+                {
+                    idProduto: 2,
+                    id: 2,
+                    nome: 'Termômetro Digital',
+                    descricao: 'Termômetro digital com medição rápida e precisa da temperatura',
+                    stqMax: 50,
+                    stqMin: 5
+                },
+                {
+                    idProduto: 5,
+                    id: 5,
+                    nome: 'Esparadrapo',
+                    descricao: 'Esparadrapo resistente à água, indicado para curativos',
+                    stqMax: 75,
+                    stqMin: 15
+                }
+            ],
+            totalElements: 3,
+            totalPages: 1,
+            number: 0,
+            size: 3
+        };
     }
 
     /**

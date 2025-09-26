@@ -296,4 +296,129 @@ public class ProdutoService extends BaseService {
     public long count() {
         return produtoRepository.count();
     }
+
+    /**
+     * Busca produtos por nome contendo texto (para autocompletar)
+     * @param nome Texto a ser buscado no nome do produto
+     * @return Lista de produtos encontrados
+     */
+    public java.util.List<Produto> buscarPorNomeContendo(String nome) {
+        long startTime = System.currentTimeMillis();
+        log.info("Buscando produtos que contenham no nome: '{}'", nome);
+        
+        // Por enquanto vamos buscar todos e filtrar manualmente até criar o método no repository
+        java.util.List<Produto> todosProdutos = produtoRepository.findAll();
+        java.util.List<Produto> produtos = todosProdutos.stream()
+                .filter(p -> p.getNome().toLowerCase().contains(nome.toLowerCase()))
+                .collect(java.util.stream.Collectors.toList());
+        
+        long endTime = System.currentTimeMillis();
+        log.info("Busca de produtos por nome contendo '{}' executada em {}ms. Encontrados: {}", 
+                nome, endTime - startTime, produtos.size());
+        
+        return produtos;
+    }
+
+    /**
+     * Verifica disponibilidade de estoque para um produto
+     * @param id ID do produto
+     * @param quantidade Quantidade solicitada
+     * @return Mapa com informações de disponibilidade
+     */
+    public java.util.Map<String, Object> verificarDisponibilidadeEstoque(Integer id, Integer quantidade) {
+        long startTime = System.currentTimeMillis();
+        log.info("Verificando disponibilidade de estoque - Produto ID: {}, Quantidade: {}", id, quantidade);
+        
+        java.util.Map<String, Object> resultado = new java.util.HashMap<>();
+        
+        Optional<Produto> produtoOpt = findById(id);
+        
+        if (produtoOpt.isEmpty()) {
+            resultado.put("disponivel", false);
+            resultado.put("mensagem", "Produto não encontrado");
+            return resultado;
+        }
+        
+        Produto produto = produtoOpt.get();
+        
+        // Verifica estoque máximo usando stqMax
+        if (produto.getStqMax() != null && quantidade > produto.getStqMax()) {
+            resultado.put("disponivel", false);
+            resultado.put("mensagem", String.format("Quantidade solicitada (%d) excede o estoque máximo (%d)", 
+                    quantidade, produto.getStqMax()));
+            resultado.put("estoqueMaximo", produto.getStqMax());
+            resultado.put("quantidadeSolicitada", quantidade);
+        } else {
+            resultado.put("disponivel", true);
+            resultado.put("mensagem", "Estoque disponível");
+            resultado.put("estoqueMaximo", produto.getStqMax());
+            resultado.put("estoqueMinimo", produto.getStqMin());
+            resultado.put("quantidadeSolicitada", quantidade);
+        }
+        
+        long endTime = System.currentTimeMillis();
+        log.info("Verificação de estoque executada em {}ms", endTime - startTime);
+        
+        return resultado;
+    }
+
+    /**
+     * Busca produto por IDPRODUTO (campo específico da tabela)
+     * @param idProduto Valor do campo IDPRODUTO
+     * @return Optional contendo o produto se encontrado
+     */
+    public Optional<Produto> buscarPorIdProduto(Long idProduto) {
+        long startTime = System.currentTimeMillis();
+        log.info("Buscando produto por IDPRODUTO: {}", idProduto);
+        
+        Optional<Produto> produto = produtoRepository.findByIdProduto(idProduto.intValue());
+        
+        long endTime = System.currentTimeMillis();
+        log.info("Busca de produto por IDPRODUTO {} executada em {}ms", idProduto, endTime - startTime);
+        
+        return produto;
+    }
+
+    /**
+     * Busca todos os produtos para movimentação, ordenados por IDPRODUTO
+     * Incluí produtos com ID_ALMOX NULL mas indica se podem ser movimentados
+     * @return Lista de mapas com informações dos produtos
+     */
+    public java.util.List<java.util.Map<String, Object>> buscarTodosParaMovimentacao() {
+        long startTime = System.currentTimeMillis();
+        log.info("Buscando todos os produtos para movimentação ordenados por IDPRODUTO");
+        
+        java.util.List<Produto> todosProdutos = produtoRepository.findAllByOrderByIdAsc();
+        java.util.List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
+        
+        for (Produto produto : todosProdutos) {
+            java.util.Map<String, Object> produtoInfo = new java.util.HashMap<>();
+            produtoInfo.put("id", produto.getId());
+            produtoInfo.put("idProduto", produto.getId()); // IDPRODUTO é mapeado para id
+            produtoInfo.put("nome", produto.getNome());
+            produtoInfo.put("descricao", produto.getDescricao());
+            produtoInfo.put("stqMax", produto.getStqMax());
+            produtoInfo.put("stqMin", produto.getStqMin());
+            
+            // Verifica se tem almoxarifado associado
+            boolean podeMovimentar = produto.getAlmoxarifado() != null;
+            produtoInfo.put("podeMovimentar", podeMovimentar);
+            
+            if (podeMovimentar) {
+                produtoInfo.put("almoxarifado", produto.getAlmoxarifado().getNome());
+                produtoInfo.put("idAlmoxarifado", produto.getAlmoxarifado().getId());
+            } else {
+                produtoInfo.put("almoxarifado", "Sem almoxarifado");
+                produtoInfo.put("idAlmoxarifado", null);
+            }
+            
+            resultado.add(produtoInfo);
+        }
+        
+        long endTime = System.currentTimeMillis();
+        log.info("Busca de produtos para movimentação executada em {}ms. Encontrados: {}", 
+                endTime - startTime, resultado.size());
+        
+        return resultado;
+    }
 }

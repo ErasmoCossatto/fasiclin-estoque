@@ -233,11 +233,33 @@ public class MovimentacaoService {
             throw new IllegalArgumentException("Estoque deve ser informado");
         }
         
-        // Buscar estoque completo para verificar se existe
-        Optional<Estoque> estoque = estoqueRepository.findById(movimentacao.getEstoque().getId());
+        // Primeiro tenta buscar por ID de estoque diretamente
+        Integer idRecebido = movimentacao.getEstoque().getId();
+        Optional<Estoque> estoque = estoqueRepository.findById(idRecebido);
+        
         if (estoque.isEmpty()) {
-            throw new IllegalArgumentException("Estoque não encontrado");
+            // Se não encontrou como estoque, tenta como produto
+            log.info("Não encontrou estoque com ID {}, tentando buscar como produto...", idRecebido);
+            Optional<Produto> produto = produtoRepository.findById(idRecebido);
+            if (produto.isPresent()) {
+                // Busca estoque que contém esse produto
+                List<Estoque> estoquesDoProduto = estoqueRepository.findByIdProduto(idRecebido);
+                if (!estoquesDoProduto.isEmpty()) {
+                    // Usa o primeiro estoque encontrado para esse produto
+                    estoque = Optional.of(estoquesDoProduto.get(0));
+                    log.info("Encontrou estoque ID {} para produto ID {}", estoque.get().getId(), idRecebido);
+                } else {
+                    // Se o produto não tem estoque, vamos criar um temporário
+                    log.warn("Produto {} não possui estoque cadastrado", idRecebido);
+                    throw new IllegalArgumentException("Produto não possui estoque cadastrado. Produto ID: " + idRecebido);
+                }
+            } else {
+                throw new IllegalArgumentException("Nem estoque nem produto encontrado com ID: " + idRecebido);
+            }
+        } else {
+            log.info("Estoque encontrado diretamente com ID {}", idRecebido);
         }
+        
         movimentacao.setEstoque(estoque.get());
         
         // Validar usuário

@@ -122,4 +122,15 @@ public interface ProdutoRepository extends JpaRepository<Produto, Integer> {
     })
     Optional<Produto> findByPtnPedido(@Param("ptnPedido") Integer ptnPedido);
 
+    //TODOS OS PRODUTOS ORDENADOS POR IDPRODUTO (para movimentação)
+    @Query("SELECT p FROM Produto p ORDER BY p.id ASC")
+    @QueryHints({
+        @QueryHint(name = "org.hibernate.readOnly", value = "true"),
+        @QueryHint(name = "org.hibernate.fetchSize", value = "100"),
+        @QueryHint(name = "org.hibernate.cacheable", value = "true"),
+        @QueryHint(name = "jakarta.persistence.cache.storeMode", value = "USE"),
+        @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "USE")
+    })
+    java.util.List<Produto> findAllByOrderByIdAsc();
+
 }
