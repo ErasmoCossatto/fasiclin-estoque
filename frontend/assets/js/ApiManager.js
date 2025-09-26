@@ -9,6 +9,7 @@ class ApiManager {
         this.headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Authorization': 'Basic ' + btoa('admin:admin'), // Autenticação básica
             'Access-Control-Allow-Origin': '*'
         };
     }
@@ -174,37 +175,29 @@ class ApiManager {
      * @returns {Promise<Object>} - Página de estoques com produtos
      */
     async listarEstoques(params = {}) {
-        const endpoints = [
-            '/estoque-simples/produtos',
-            `/estoque?page=${params.page || 0}&size=${params.size || 50}&sortBy=${params.sortBy || 'id'}&direction=${params.direction || 'ASC'}`,
-            '/estoque-simples',
-            '/produtos'
-        ];
-
-        for (let i = 0; i < endpoints.length; i++) {
-            try {
-                console.log(`[ESTOQUE] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
-                const result = await this.request(endpoints[i]);
-                
-                // Normaliza a resposta para ter sempre a mesma estrutura
+        try {
+            console.log(`[ESTOQUE] Chamando endpoint: /estoque`);
+            const result = await this.request('/estoque');
+            
+            if (result.success && result.data) {
                 let normalizedResult;
                 
-                if (Array.isArray(result)) {
+                if (Array.isArray(result.data)) {
                     normalizedResult = {
-                        content: result.map(item => this.normalizeEstoqueItem(item)),
-                        totalElements: result.length,
+                        content: result.data.map(item => this.normalizeEstoqueItem(item)),
+                        totalElements: result.data.length,
                         totalPages: 1,
                         number: 0,
-                        size: result.length
+                        size: result.data.length
                     };
-                } else if (result.content) {
+                } else if (result.data.content) {
                     normalizedResult = {
-                        ...result,
-                        content: result.content.map(item => this.normalizeEstoqueItem(item))
+                        ...result.data,
+                        content: result.data.content.map(item => this.normalizeEstoqueItem(item))
                     };
                 } else {
                     normalizedResult = {
-                        content: [this.normalizeEstoqueItem(result)],
+                        content: [this.normalizeEstoqueItem(result.data)],
                         totalElements: 1,
                         totalPages: 1,
                         number: 0,
@@ -212,17 +205,15 @@ class ApiManager {
                     };
                 }
                 
-                console.log(`[ESTOQUE] ✅ Sucesso no endpoint ${i + 1}: ${normalizedResult.content.length} itens`);
+                console.log(`[ESTOQUE] ✅ Sucesso: ${normalizedResult.content.length} itens`);
                 return normalizedResult;
-                
-            } catch (error) {
-                console.warn(`[ESTOQUE] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
-                if (i === endpoints.length - 1) {
-                    // Se todos os endpoints falharam, retorna dados mockados
-                    console.warn('[ESTOQUE] Todos endpoints falharam, usando dados mockados');
-                    return this.getMockedEstoques();
-                }
+            } else {
+                console.warn('[ESTOQUE] Resposta vazia ou erro, usando dados mockados');
+                return this.getMockedEstoques();
             }
+        } catch (error) {
+            console.warn(`[ESTOQUE] ❌ Erro: ${error.message}, usando dados mockados`);
+            return this.getMockedEstoques();
         }
     }
 
@@ -535,25 +526,22 @@ class ApiManager {
      * @returns {Promise<Array>} - Lista de usuários
      */
     async listarUsuarios() {
-        const endpoints = ['/usuarios', '/inicializacao/usuarios', '/dados-teste/usuarios'];
-        
-        for (let i = 0; i < endpoints.length; i++) {
-            try {
-                console.log(`[USUARIOS] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
-                const result = await this.request(endpoints[i]);
-                
+        try {
+            console.log(`[USUARIOS] Chamando endpoint: /usuarios`);
+            const result = await this.request('/usuarios');
+            
+            if (result.success && result.data) {
                 // Normaliza resultado para array
-                const usuarios = Array.isArray(result) ? result : [result];
-                console.log(`[USUARIOS] ✅ Sucesso no endpoint ${i + 1}: ${usuarios.length} usuários`);
+                const usuarios = Array.isArray(result.data) ? result.data : [result.data];
+                console.log(`[USUARIOS] ✅ Sucesso: ${usuarios.length} usuários`);
                 return usuarios.map(user => this.normalizeUsuarioItem(user));
-                
-            } catch (error) {
-                console.warn(`[USUARIOS] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
-                if (i === endpoints.length - 1) {
-                    console.warn('[USUARIOS] Todos endpoints falharam, usando dados mockados');
-                    return this.getMockedUsuarios();
-                }
+            } else {
+                console.warn('[USUARIOS] Resposta vazia ou erro, usando dados mockados');
+                return this.getMockedUsuarios();
             }
+        } catch (error) {
+            console.warn(`[USUARIOS] ❌ Erro: ${error.message}, usando dados mockados`);
+            return this.getMockedUsuarios();
         }
     }
 
@@ -588,25 +576,22 @@ class ApiManager {
      * @returns {Promise<Array>} - Lista de setores
      */
     async listarSetores() {
-        const endpoints = ['/setores', '/inicializacao/setores', '/dados-teste/setores'];
-        
-        for (let i = 0; i < endpoints.length; i++) {
-            try {
-                console.log(`[SETORES] Tentando endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
-                const result = await this.request(endpoints[i]);
-                
+        try {
+            console.log(`[SETORES] Chamando endpoint: /setores`);
+            const result = await this.request('/setores');
+            
+            if (result.success && result.data) {
                 // Normaliza resultado para array
-                const setores = Array.isArray(result) ? result : [result];
-                console.log(`[SETORES] ✅ Sucesso no endpoint ${i + 1}: ${setores.length} setores`);
+                const setores = Array.isArray(result.data) ? result.data : [result.data];
+                console.log(`[SETORES] ✅ Sucesso: ${setores.length} setores`);
                 return setores.map(setor => this.normalizeSetorItem(setor));
-                
-            } catch (error) {
-                console.warn(`[SETORES] ❌ Falha no endpoint ${i + 1}: ${error.message}`);
-                if (i === endpoints.length - 1) {
-                    console.warn('[SETORES] Todos endpoints falharam, usando dados mockados');
-                    return this.getMockedSetores();
-                }
+            } else {
+                console.warn('[SETORES] Resposta vazia ou erro, usando dados mockados');
+                return this.getMockedSetores();
             }
+        } catch (error) {
+            console.warn(`[SETORES] ❌ Erro: ${error.message}, usando dados mockados`);
+            return this.getMockedSetores();
         }
     }
 

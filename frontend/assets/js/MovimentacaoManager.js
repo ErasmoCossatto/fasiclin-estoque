@@ -1,11 +1,11 @@
 /**
- * MovimentacaoManager - Gerencia a interface de movimentações Apple-style
+ * MovimentacaoManager - Gerenciador de movimentações integrado com Spring Boot
  */
 class MovimentacaoManager {
     constructor() {
-        this.apiManager = new ApiManager();
+        this.apiManager = window.apiManager;
         this.movimentacoes = [];
-        this.produtos = [];
+        this.estoques = [];
         this.usuarios = [];
         this.setores = [];
         this.currentEditId = null;
@@ -17,41 +17,50 @@ class MovimentacaoManager {
     /**
      * Inicializa o gerenciador
      */
-    init() {
+    async init() {
+        console.log('[MovimentacaoManager] Inicializando...');
         this.bindEvents();
-        this.loadData();
+        await this.loadData();
     }
 
     /**
      * Vincula eventos aos elementos
      */
     bindEvents() {
-        // Botão novo movimento
-        const btnNovo = document.getElementById('btnNovo');
+        // Botão nova movimentação
+        const btnNovo = document.getElementById('add-movement-btn');
         if (btnNovo) {
             btnNovo.addEventListener('click', () => this.showModal());
         }
 
-        // Botão salvar
-        const btnSalvar = document.getElementById('btnSalvar');
-        if (btnSalvar) {
-            btnSalvar.addEventListener('click', (e) => this.handleSave(e));
+        // Fechar modal
+        const btnFechar = document.getElementById('close-modal');
+        if (btnFechar) {
+            btnFechar.addEventListener('click', () => this.hideModal());
         }
 
-        // Botão cancelar
-        const btnCancelar = document.getElementById('btnCancelar');
+        // Cancelar modal
+        const btnCancelar = document.getElementById('cancel-btn');
         if (btnCancelar) {
             btnCancelar.addEventListener('click', () => this.hideModal());
         }
 
+        // Submeter formulário
+        const form = document.getElementById('movement-form');
+        if (form) {
+            form.addEventListener('submit', (e) => this.handleSave(e));
+        }
+
         // Pesquisa
-        const searchInput = document.getElementById('searchInput');
+        const searchInput = document.querySelector('.search-input');
         if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.handleSearch(e.target.value));
+            searchInput.addEventListener('input', (e) => {
+                this.handleSearch(e.target.value);
+            });
         }
 
         // Fechar modal ao clicar no overlay
-        const modal = document.getElementById('movimentacaoModal');
+        const modal = document.getElementById('movement-modal');
         if (modal) {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
@@ -60,247 +69,231 @@ class MovimentacaoManager {
             });
         }
 
-        // Detectar mudança de viewport para modo responsivo
-        window.addEventListener('resize', () => this.handleResize());
+        // Atualizar dados
+        const btnAtualizar = document.querySelector('[onclick="loadMovements()"]');
+        if (btnAtualizar) {
+            btnAtualizar.onclick = () => this.loadMovimentacoes();
+        }
+
+        console.log('[MovimentacaoManager] Eventos vinculados');
     }
 
     /**
-     * Carrega os dados iniciais
+     * Carrega todos os dados necessários
      */
     async loadData() {
+        this.setLoading(true);
+        
         try {
-            this.setLoading(true);
+            console.log('[MovimentacaoManager] Carregando dados...');
             
-            // Carrega dados em paralelo usando o ApiManager corrigido
-            const [movimentacoesResult, produtosResult, usuariosResult, setoresResult] = await Promise.allSettled([
+            // Carrega dados em paralelo
+            const promises = [
                 this.loadMovimentacoes(),
-                this.loadProdutos(),
+                this.loadEstoques(),
                 this.loadUsuarios(),
                 this.loadSetores()
-            ]);
-
-            // Log dos resultados
-            console.log('Resultados do carregamento:', {
-                movimentacoes: movimentacoesResult.status,
-                produtos: produtosResult.status,
-                usuarios: usuariosResult.status,
-                setores: setoresResult.status
-            });
-
+            ];
+            
+            await Promise.all(promises);
+            
             this.renderMovimentacoes();
-            this.setLoading(false);
+            console.log('[MovimentacaoManager] ✅ Todos os dados carregados com sucesso');
             
         } catch (error) {
+            console.error('[MovimentacaoManager] ❌ Erro ao carregar dados:', error);
+            this.showNotification('Erro ao carregar dados: ' + error.message, 'error');
+        } finally {
             this.setLoading(false);
-            this.showNotification('❌ Erro ao carregar dados iniciais', 'error');
-            console.error('Erro ao carregar dados:', error);
         }
     }
 
     /**
-     * Carrega movimentações usando ApiManager
+     * Carrega movimentações do servidor
      */
     async loadMovimentacoes() {
         try {
-            console.log('[MOVIMENTACOES] Carregando movimentações...');
-            const response = await this.apiManager.request('/movimentacoes');
+            console.log('[MovimentacaoManager] Carregando movimentações...');
+            const result = await this.apiManager.listarMovimentacoes();
             
-            if (response.success && response.data) {
-                this.movimentacoes = Array.isArray(response.data) ? response.data : [response.data];
-                console.log(`[MOVIMENTACOES] ✅ ${this.movimentacoes.length} movimentações carregadas`);
+            if (result.success && result.data) {
+                this.movimentacoes = Array.isArray(result.data) ? result.data : [result.data];
+                console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações carregadas`);
             } else {
-                throw new Error('Resposta inválida da API');
+                console.warn('[MovimentacaoManager] Nenhuma movimentação encontrada');
+                this.movimentacoes = [];
             }
-            
-            return this.movimentacoes;
         } catch (error) {
-            console.warn('[MOVIMENTACOES] Falha ao carregar, usando dados mockados');
-            this.movimentacoes = this.getMockedMovimentacoes();
-            return this.movimentacoes;
+            console.error('[MovimentacaoManager] Erro ao carregar movimentações:', error);
+            this.movimentacoes = [];
         }
     }
 
     /**
-     * Carrega produtos usando ApiManager
+     * Carrega estoques do servidor
      */
-    async loadProdutos() {
+    async loadEstoques() {
         try {
-            console.log('[PRODUTOS] Carregando produtos...');
-            const response = await this.apiManager.request('/produtos');
+            console.log('[MovimentacaoManager] Carregando estoques...');
+            const result = await this.apiManager.listarEstoques();
             
-            if (response.success && response.data) {
-                // Se veio como página, extrair o conteúdo
-                let produtos = response.data.content || response.data;
-                if (!Array.isArray(produtos)) produtos = [produtos];
-                
-                this.produtos = produtos;
-                console.log(`[PRODUTOS] ✅ ${this.produtos.length} produtos carregados`);
-                this.populateSelect('produtoId', this.produtos, 'id', 'nome');
-                return this.produtos;
+            if (result.success && result.data) {
+                // Se o resultado tem paginação, pega o content
+                this.estoques = result.data.content || result.data;
+                console.log(`[MovimentacaoManager] ✅ ${this.estoques.length} estoques carregados`);
             } else {
-                throw new Error('Resposta inválida da API');
+                console.warn('[MovimentacaoManager] Nenhum estoque encontrado');
+                this.estoques = [];
             }
+            
+            this.populateEstoqueSelect();
         } catch (error) {
-            console.warn('[PRODUTOS] Falha ao carregar produtos:', error);
-            this.produtos = this.getMockedProdutos();
-            this.populateSelect('produtoId', this.produtos, 'id', 'nome');
-            return this.produtos;
+            console.error('[MovimentacaoManager] Erro ao carregar estoques:', error);
+            this.estoques = [];
         }
     }
 
     /**
-     * Carrega usuários usando ApiManager
+     * Carrega usuários do servidor
      */
     async loadUsuarios() {
         try {
-            console.log('[USUARIOS] Carregando usuários...');
-            const response = await this.apiManager.request('/usuarios');
+            console.log('[MovimentacaoManager] Carregando usuários...');
+            const usuarios = await this.apiManager.listarUsuarios();
             
-            if (response.success && response.data) {
-                let usuarios = response.data.content || response.data;
-                if (!Array.isArray(usuarios)) usuarios = [usuarios];
-                
-                this.usuarios = usuarios;
-                console.log(`[USUARIOS] ✅ ${this.usuarios.length} usuários carregados`);
-                this.populateSelect('usuarioId', this.usuarios, 'id', 'nome');
-                return this.usuarios;
-            } else {
-                throw new Error('Resposta inválida da API');
-            }
+            this.usuarios = usuarios || [];
+            console.log(`[MovimentacaoManager] ✅ ${this.usuarios.length} usuários carregados`);
+            
+            this.populateUsuarioSelect();
         } catch (error) {
-            console.warn('[USUARIOS] Falha ao carregar usuários:', error);
-            this.usuarios = this.getMockedUsuarios();
-            this.populateSelect('usuarioId', this.usuarios, 'id', 'nome');
-            return this.usuarios;
+            console.error('[MovimentacaoManager] Erro ao carregar usuários:', error);
+            this.usuarios = [];
         }
     }
 
     /**
-     * Carrega setores usando ApiManager
+     * Carrega setores do servidor
      */
     async loadSetores() {
         try {
-            console.log('[SETORES] Carregando setores...');
-            const response = await this.apiManager.request('/setores');
+            console.log('[MovimentacaoManager] Carregando setores...');
+            const setores = await this.apiManager.listarSetores();
             
-            if (response.success && response.data) {
-                let setores = response.data.content || response.data;
-                if (!Array.isArray(setores)) setores = [setores];
-                
-                this.setores = setores;
-                console.log(`[SETORES] ✅ ${this.setores.length} setores carregados`);
-                this.populateSelect('setorOrigemId', this.setores, 'id', 'nome');
-                this.populateSelect('setorDestinoId', this.setores, 'id', 'nome');
-                return this.setores;
-            } else {
-                throw new Error('Resposta inválida da API');
-            }
+            this.setores = setores || [];
+            console.log(`[MovimentacaoManager] ✅ ${this.setores.length} setores carregados`);
+            
+            this.populateSetorSelects();
         } catch (error) {
-            console.warn('[SETORES] Falha ao carregar setores:', error);
-            this.setores = this.getMockedSetores();
-            this.populateSelect('setorOrigemId', this.setores, 'id', 'nome');
-            this.populateSelect('setorDestinoId', this.setores, 'id', 'nome');
-            return this.setores;
+            console.error('[MovimentacaoManager] Erro ao carregar setores:', error);
+            this.setores = [];
         }
     }
 
     /**
-     * Popula um select com opções
+     * Popula select de estoques
      */
-    populateSelect(selectId, data, valueField, textField) {
-        const select = document.getElementById(selectId);
+    populateEstoqueSelect() {
+        const select = document.getElementById('estoque-select');
         if (!select) return;
 
-        select.innerHTML = '<option value="">Selecione...</option>';
+        select.innerHTML = '<option value="">Selecione um produto...</option>';
         
-        if (Array.isArray(data)) {
-            data.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item[valueField];
-                option.textContent = item[textField];
-                select.appendChild(option);
-            });
-        }
+        this.estoques.forEach(estoque => {
+            const option = document.createElement('option');
+            option.value = estoque.id || estoque.estoqueId;
+            option.textContent = `${estoque.produto?.nome || 'Produto sem nome'} - Qtd: ${estoque.quantidadeEstoque || 0}`;
+            select.appendChild(option);
+        });
     }
 
     /**
-     * Renderiza a tabela/cards de movimentações
+     * Popula select de usuários
+     */
+    populateUsuarioSelect() {
+        const select = document.getElementById('usuario-select');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Selecione um usuário...</option>';
+        
+        this.usuarios.forEach(usuario => {
+            const option = document.createElement('option');
+            option.value = usuario.id;
+            option.textContent = usuario.nome || usuario.login;
+            select.appendChild(option);
+        });
+    }
+
+    /**
+     * Popula selects de setores
+     */
+    populateSetorSelects() {
+        const selectOrigem = document.getElementById('setor-origem-select');
+        const selectDestino = document.getElementById('setor-destino-select');
+        
+        const options = '<option value="">Selecione um setor...</option>' + 
+                       this.setores.map(setor => 
+                           `<option value="${setor.id}">${setor.nome}</option>`
+                       ).join('');
+
+        if (selectOrigem) selectOrigem.innerHTML = options;
+        if (selectDestino) selectDestino.innerHTML = options;
+    }
+
+    /**
+     * Renderiza tabela/cards de movimentações
      */
     renderMovimentacoes() {
-        const container = document.getElementById('movimentacoesContainer');
-        if (!container) return;
-
-        if (this.movimentacoes.length === 0) {
-            container.innerHTML = this.createEmptyState();
+        const tableBody = document.getElementById('movements-table-body');
+        const mobileCards = document.getElementById('mobile-cards');
+        
+        if (!tableBody && !mobileCards) {
+            console.error('[MovimentacaoManager] Elementos de renderização não encontrados');
             return;
         }
 
-        if (window.innerWidth <= 768) {
-            this.renderCards(container);
-        } else {
-            this.renderTable(container);
+        if (this.movimentacoes.length === 0) {
+            this.renderEmptyState();
+            return;
         }
-    }
 
-    /**
-     * Renderiza tabela desktop
-     */
-    renderTable(container) {
-        const table = document.createElement('table');
-        table.className = 'movimentacoes-table';
-        
-        table.innerHTML = `
-            <thead>
-                <tr>
-                    <th>Data</th>
-                    <th>Tipo</th>
-                    <th>Produto</th>
-                    <th>Quantidade</th>
-                    <th>Origem</th>
-                    <th>Destino</th>
-                    <th>Usuário</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${this.movimentacoes.map(mov => this.createTableRow(mov)).join('')}
-            </tbody>
-        `;
+        // Renderizar tabela desktop
+        if (tableBody) {
+            tableBody.innerHTML = this.movimentacoes.map(mov => this.createTableRow(mov)).join('');
+        }
 
-        container.innerHTML = '';
-        container.appendChild(table);
-    }
+        // Renderizar cards mobile
+        if (mobileCards) {
+            mobileCards.innerHTML = this.movimentacoes.map(mov => this.createCard(mov)).join('');
+        }
 
-    /**
-     * Renderiza cards mobile
-     */
-    renderCards(container) {
-        const cards = this.movimentacoes.map(mov => this.createCard(mov)).join('');
-        container.innerHTML = `<div class="cards-container">${cards}</div>`;
+        this.updatePaginationInfo();
+        console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações renderizadas`);
     }
 
     /**
      * Cria linha da tabela
      */
     createTableRow(movimentacao) {
+        const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
+        const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
+        
         return `
             <tr data-id="${movimentacao.id}">
-                <td>${this.formatDate(movimentacao.dataMovimentacao)}</td>
+                <td>${movimentacao.id}</td>
+                <td>${movimentacao.nomeProduto || 'N/A'}</td>
                 <td>
-                    <span class="tipo-badge tipo-${movimentacao.tipo?.toLowerCase()}">
-                        ${this.getTipoIcon(movimentacao.tipo)} ${movimentacao.tipo}
+                    <span class="type-badge ${tipoClass}">
+                        ${tipoIcon} ${movimentacao.tipoMovimentacao}
                     </span>
                 </td>
-                <td>${movimentacao.produto?.nome || 'N/A'}</td>
-                <td class="quantidade">${movimentacao.quantidade}</td>
-                <td>${movimentacao.setorOrigemId?.nome || '-'}</td>
-                <td>${movimentacao.setorDestinoId?.nome || '-'}</td>
-                <td>${movimentacao.usuario?.nome || 'N/A'}</td>
-                <td class="acoes">
-                    <button class="btn-acao btn-edit" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})" title="Editar">
+                <td>${movimentacao.quantidade}</td>
+                <td>${this.formatDate(movimentacao.dataMovimentacao)}</td>
+                <td>${movimentacao.usuario?.login || 'N/A'}</td>
+                <td class="action-buttons">
+                    <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})" title="Editar">
                         ✏️
                     </button>
-                    <button class="btn-acao btn-delete" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})" title="Excluir">
+                    <button class="delete-btn" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})" title="Excluir">
                         🗑️
                     </button>
                 </td>
@@ -312,104 +305,143 @@ class MovimentacaoManager {
      * Cria card mobile
      */
     createCard(movimentacao) {
+        const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
+        const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
+        
         return `
-            <div class="movimentacao-card" data-id="${movimentacao.id}">
-                <div class="card-header">
-                    <span class="tipo-badge tipo-${movimentacao.tipo?.toLowerCase()}">
-                        ${this.getTipoIcon(movimentacao.tipo)} ${movimentacao.tipo}
+            <div class="mobile-card" data-id="${movimentacao.id}">
+                <div class="mobile-card-header">
+                    <div class="mobile-card-id">#${movimentacao.id}</div>
+                    <span class="type-badge ${tipoClass}">
+                        ${tipoIcon} ${movimentacao.tipoMovimentacao}
                     </span>
-                    <div class="card-actions">
-                        <button class="btn-acao btn-edit" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})">✏️</button>
-                        <button class="btn-acao btn-delete" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})">🗑️</button>
+                </div>
+                <div class="mobile-card-body">
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Produto:</span>
+                        <span class="mobile-card-value">${movimentacao.nomeProduto || 'N/A'}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Quantidade:</span>
+                        <span class="mobile-card-value">${movimentacao.quantidade}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Data:</span>
+                        <span class="mobile-card-value">${this.formatDate(movimentacao.dataMovimentacao)}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">Usuário:</span>
+                        <span class="mobile-card-value">${movimentacao.usuario?.login || 'N/A'}</span>
                     </div>
                 </div>
-                <div class="card-content">
-                    <h3>${movimentacao.produto?.nome || 'Produto N/A'}</h3>
-                    <div class="card-details">
-                        <div class="detail">
-                            <span class="label">📅 Data:</span>
-                            <span class="value">${this.formatDate(movimentacao.dataMovimentacao)}</span>
-                        </div>
-                        <div class="detail">
-                            <span class="label">📦 Quantidade:</span>
-                            <span class="value">${movimentacao.quantidade}</span>
-                        </div>
-                        <div class="detail">
-                            <span class="label">📍 Origem:</span>
-                            <span class="value">${movimentacao.setorOrigemId?.nome || '-'}</span>
-                        </div>
-                        <div class="detail">
-                            <span class="label">🎯 Destino:</span>
-                            <span class="value">${movimentacao.setorDestinoId?.nome || '-'}</span>
-                        </div>
-                        <div class="detail">
-                            <span class="label">👤 Usuário:</span>
-                            <span class="value">${movimentacao.usuario?.nome || 'N/A'}</span>
-                        </div>
-                    </div>
+                <div class="mobile-card-actions">
+                    <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})">✏️ Editar</button>
+                    <button class="delete-btn" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})">🗑️ Excluir</button>
                 </div>
             </div>
         `;
     }
 
     /**
-     * Cria estado vazio
+     * Renderiza estado vazio
      */
-    createEmptyState() {
-        return `
-            <div class="empty-state">
-                <div class="empty-icon">📦</div>
-                <h3>Nenhuma movimentação encontrada</h3>
-                <p>Comece criando uma nova movimentação de estoque</p>
-                <button class="btn btn-primary" onclick="movimentacaoManager.showModal()">
-                    ➕ Nova Movimentação
-                </button>
-            </div>
+    renderEmptyState() {
+        const emptyHTML = `
+            <tr>
+                <td colspan="7" class="empty-state">
+                    <h3>📦 Nenhuma movimentação encontrada</h3>
+                    <p>Comece criando uma nova movimentação de estoque</p>
+                    <button class="btn btn-primary" onclick="movimentacaoManager.showModal()">
+                        ➕ Nova Movimentação
+                    </button>
+                </td>
+            </tr>
         `;
+        
+        const tableBody = document.getElementById('movements-table-body');
+        const mobileCards = document.getElementById('mobile-cards');
+        
+        if (tableBody) tableBody.innerHTML = emptyHTML;
+        if (mobileCards) mobileCards.innerHTML = '<div class="empty-state"><h3>📦 Nenhuma movimentação encontrada</h3></div>';
     }
 
     /**
-     * Exibe modal
+     * Atualiza informações de paginação
+     */
+    updatePaginationInfo() {
+        const total = this.movimentacoes.length;
+        
+        const startElement = document.getElementById('start-item');
+        const endElement = document.getElementById('end-item');
+        const totalElement = document.getElementById('total-items');
+        
+        if (startElement) startElement.textContent = total > 0 ? '1' : '0';
+        if (endElement) endElement.textContent = total.toString();
+        if (totalElement) totalElement.textContent = total.toString();
+    }
+
+    /**
+     * Exibe modal de nova/edição movimentação
      */
     showModal(movimentacao = null) {
-        const modal = document.getElementById('movimentacaoModal');
-        const form = document.getElementById('movimentacaoForm');
+        const modal = document.getElementById('movement-modal');
+        const form = document.getElementById('movement-form');
+        const title = document.getElementById('modal-title');
         
-        if (!modal || !form) return;
+        if (!modal || !form) {
+            console.error('[MovimentacaoManager] Modal ou formulário não encontrado');
+            return;
+        }
 
+        console.log('[MovimentacaoManager] Abrindo modal...');
+        
         this.currentEditId = movimentacao?.id || null;
+        
+        // Configurar título
+        if (title) {
+            title.textContent = movimentacao ? '✏️ Editar Movimentação' : '✨ Nova Movimentação';
+        }
         
         // Limpar formulário
         form.reset();
         
+        // Definir data padrão como hoje
+        const dateInput = document.getElementById('date');
+        if (dateInput && !movimentacao) {
+            dateInput.value = new Date().toISOString().split('T')[0];
+        }
+        
         // Preencher dados se for edição
         if (movimentacao) {
             this.fillForm(movimentacao);
-            document.getElementById('modalTitle').textContent = '✏️ Editar Movimentação';
-        } else {
-            document.getElementById('modalTitle').textContent = '➕ Nova Movimentação';
         }
 
+        // Mostrar modal
+        modal.classList.remove('hidden');
         modal.classList.add('show');
         document.body.classList.add('modal-open');
         
         // Foco no primeiro campo
-        const firstInput = form.querySelector('input, select');
+        const firstInput = form.querySelector('input[type="number"], select');
         if (firstInput) {
             setTimeout(() => firstInput.focus(), 100);
         }
+        
+        console.log('[MovimentacaoManager] Modal exibido');
     }
 
     /**
      * Oculta modal
      */
     hideModal() {
-        const modal = document.getElementById('movimentacaoModal');
+        const modal = document.getElementById('movement-modal');
         if (modal) {
+            modal.classList.add('hidden');
             modal.classList.remove('show');
             document.body.classList.remove('modal-open');
         }
         this.currentEditId = null;
+        console.log('[MovimentacaoManager] Modal ocultado');
     }
 
     /**
@@ -486,18 +518,14 @@ class MovimentacaoManager {
      * Obtém dados do formulário
      */
     getFormData() {
-        const form = document.getElementById('movimentacaoForm');
-        const formData = new FormData(form);
-        
         return {
-            tipo: formData.get('tipo'),
-            produtoId: parseInt(formData.get('produtoId')) || null,
-            quantidade: parseInt(formData.get('quantidade')) || 0,
-            dataMovimentacao: formData.get('dataMovimentacao'),
-            setorOrigemId: parseInt(formData.get('setorOrigemId')) || null,
-            setorDestinoId: parseInt(formData.get('setorDestinoId')) || null,
-            usuarioId: parseInt(formData.get('usuarioId')) || null,
-            observacoes: formData.get('observacoes') || ''
+            estoqueId: parseInt(document.getElementById('estoque-select').value) || null,
+            usuarioId: parseInt(document.getElementById('usuario-select').value) || null,
+            setorOrigemId: parseInt(document.getElementById('setor-origem-select').value) || null,
+            setorDestinoId: parseInt(document.getElementById('setor-destino-select').value) || null,
+            tipoMovimentacao: document.getElementById('type').value,
+            quantidade: parseInt(document.getElementById('amount').value) || 0,
+            dataMovimentacao: document.getElementById('date').value
         };
     }
 
@@ -507,13 +535,16 @@ class MovimentacaoManager {
     validateForm(data) {
         const errors = [];
 
-        if (!data.tipo) errors.push('Tipo é obrigatório');
-        if (!data.produtoId) errors.push('Produto é obrigatório');
-        if (!data.quantidade || data.quantidade <= 0) errors.push('Quantidade deve ser maior que zero');
-        if (!data.dataMovimentacao) errors.push('Data é obrigatória');
+        if (!data.estoqueId) errors.push('Selecione um produto');
+        if (!data.usuarioId) errors.push('Selecione um usuário');
+        if (!data.setorOrigemId) errors.push('Selecione o setor de origem');
+        if (!data.setorDestinoId) errors.push('Selecione o setor de destino');
+        if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
+        if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
+        if (!data.dataMovimentacao) errors.push('Selecione a data da movimentação');
 
         if (errors.length > 0) {
-            this.showNotification(`❌ ${errors.join(', ')}`, 'error');
+            this.showNotification(errors.join('<br>'), 'error');
             return false;
         }
 
@@ -716,4 +747,5 @@ class MovimentacaoManager {
 let movimentacaoManager;
 document.addEventListener('DOMContentLoaded', () => {
     movimentacaoManager = new MovimentacaoManager();
+    window.movimentacaoManager = movimentacaoManager; // Tornar global para debug
 });

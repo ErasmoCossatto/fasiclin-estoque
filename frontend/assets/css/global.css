@@ -352,6 +352,14 @@ a:hover {
     transform: scale(1);
 }
 
+.modal-overlay.show .modal-content {
+    transform: scale(1);
+}
+
+.modal-overlay.hidden {
+    display: none !important;
+}
+
 /* Notificações Apple-style */
 .notification {
     position: fixed;
