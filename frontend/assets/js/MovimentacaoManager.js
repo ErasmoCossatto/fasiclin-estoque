@@ -137,19 +137,43 @@ class MovimentacaoManager {
             console.log('[MovimentacaoManager] Carregando estoques...');
             const result = await this.apiManager.listarEstoques();
             
-            if (result.success && result.data) {
+            console.log('[MovimentacaoManager] Resultado da API estoques:', result);
+            
+            // Verificar se temos dados válidos - aceitar tanto result.data quanto result diretamente
+            let dadosEstoques = null;
+            
+            if (result && result.data) {
+                dadosEstoques = result.data;
+            } else if (result && result.content) {
+                // Se o result já é a estrutura paginada diretamente
+                dadosEstoques = result;
+            } else if (result) {
+                dadosEstoques = result;
+            }
+            
+            if (dadosEstoques) {
                 // Se o resultado tem paginação, pega o content
-                this.estoques = result.data.content || result.data;
-                console.log(`[MovimentacaoManager] ✅ ${this.estoques.length} estoques carregados`);
+                if (dadosEstoques.content && Array.isArray(dadosEstoques.content)) {
+                    this.estoques = dadosEstoques.content;
+                    console.log(`[MovimentacaoManager] ✅ ${this.estoques.length} estoques carregados da estrutura paginada:`, this.estoques);
+                } else if (Array.isArray(dadosEstoques)) {
+                    this.estoques = dadosEstoques;
+                    console.log(`[MovimentacaoManager] ✅ ${this.estoques.length} estoques carregados do array:`, this.estoques);
+                } else {
+                    this.estoques = [dadosEstoques];
+                    console.log('[MovimentacaoManager] ✅ 1 estoque carregado (item único):', this.estoques);
+                }
             } else {
-                console.warn('[MovimentacaoManager] Nenhum estoque encontrado');
+                console.warn('[MovimentacaoManager] Nenhum estoque encontrado ou estrutura inválida:', result);
                 this.estoques = [];
             }
             
+            // Sempre tentar popular o select, mesmo se vazio
             this.populateEstoqueSelect();
         } catch (error) {
             console.error('[MovimentacaoManager] Erro ao carregar estoques:', error);
             this.estoques = [];
+            this.populateEstoqueSelect(); // Popula com mensagem de erro
         }
     }
 
@@ -194,16 +218,52 @@ class MovimentacaoManager {
      */
     populateEstoqueSelect() {
         const select = document.getElementById('estoque-select');
-        if (!select) return;
+        if (!select) {
+            console.error('[MovimentacaoManager] Select de estoque não encontrado');
+            return;
+        }
 
+        console.log('[MovimentacaoManager] Populando select de estoques com', this.estoques.length, 'itens');
         select.innerHTML = '<option value="">Selecione um produto...</option>';
         
-        this.estoques.forEach(estoque => {
+        if (!this.estoques || this.estoques.length === 0) {
+            console.warn('[MovimentacaoManager] Nenhum estoque disponível para popular');
+            select.innerHTML += '<option value="" disabled>Nenhum produto encontrado</option>';
+            return;
+        }
+
+        this.estoques.forEach((estoque, index) => {
+            console.log(`[MovimentacaoManager] Processando estoque ${index + 1}:`, estoque);
+            
             const option = document.createElement('option');
-            option.value = estoque.id || estoque.estoqueId;
-            option.textContent = `${estoque.produto?.nome || 'Produto sem nome'} - Qtd: ${estoque.quantidadeEstoque || 0}`;
+            // Usar o ID correto baseado na estrutura retornada da API
+            option.value = estoque.id || estoque.estoqueId || estoque.idEstoque;
+            
+            // Melhorar a exibição do nome do produto
+            let produtoNome = 'Produto sem nome';
+            let quantidade = 0;
+            
+            if (estoque.produto && estoque.produto.nome) {
+                produtoNome = estoque.produto.nome;
+            } else if (estoque.nomeProduto) {
+                produtoNome = estoque.nomeProduto;
+            } else if (estoque.nome) {
+                produtoNome = estoque.nome;
+            }
+            
+            if (estoque.quantidadeEstoque !== undefined) {
+                quantidade = estoque.quantidadeEstoque;
+            } else if (estoque.quantidade !== undefined) {
+                quantidade = estoque.quantidade;
+            }
+            
+            option.textContent = `${produtoNome} - Qtd: ${quantidade}`;
             select.appendChild(option);
+            
+            console.log(`[MovimentacaoManager] Adicionado: ${produtoNome} (ID: ${option.value})`);
         });
+        
+        console.log(`[MovimentacaoManager] ✅ Select populado com ${this.estoques.length} produtos`);
     }
 
     /**
@@ -476,23 +536,30 @@ class MovimentacaoManager {
         if (this.isLoading) return;
 
         const formData = this.getFormData();
+        console.log('[MovimentacaoManager] Dados coletados do formulário:', formData);
+        
         if (!this.validateForm(formData)) return;
 
         try {
             this.setLoading(true);
+            console.log('[MovimentacaoManager] Enviando dados para API:', JSON.stringify(formData, null, 2));
             
             let response;
             if (this.currentEditId) {
+                console.log('[MovimentacaoManager] Atualizando movimentação ID:', this.currentEditId);
                 response = await this.apiManager.request(`/movimentacoes/${this.currentEditId}`, {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
             } else {
+                console.log('[MovimentacaoManager] Criando nova movimentação');
                 response = await this.apiManager.request('/movimentacoes', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
             }
+
+            console.log('[MovimentacaoManager] Resposta da API:', response);
 
             if (response.success) {
                 this.showNotification(
@@ -503,12 +570,13 @@ class MovimentacaoManager {
                 await this.loadMovimentacoes();
                 this.renderMovimentacoes();
             } else {
-                this.showNotification('❌ Erro ao salvar movimentação: ' + response.error, 'error');
+                console.error('[MovimentacaoManager] Erro na resposta da API:', response);
+                this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
             }
             
         } catch (error) {
-            console.error('Erro ao salvar:', error);
-            this.showNotification('❌ Erro ao salvar movimentação', 'error');
+            console.error('[MovimentacaoManager] Erro ao salvar:', error);
+            this.showNotification('❌ Erro ao salvar movimentação: ' + error.message, 'error');
         } finally {
             this.setLoading(false);
         }
@@ -518,11 +586,24 @@ class MovimentacaoManager {
      * Obtém dados do formulário
      */
     getFormData() {
+        const estoqueId = parseInt(document.getElementById('estoque-select').value);
+        const usuarioId = parseInt(document.getElementById('usuario-select').value);
+        const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
+        const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
+        
+        console.log('[MovimentacaoManager] Coletando dados do formulário:', {
+            estoqueId,
+            usuarioId,
+            setorOrigemId,
+            setorDestinoId
+        });
+        
         return {
-            estoqueId: parseInt(document.getElementById('estoque-select').value) || null,
-            usuarioId: parseInt(document.getElementById('usuario-select').value) || null,
-            setorOrigemId: parseInt(document.getElementById('setor-origem-select').value) || null,
-            setorDestinoId: parseInt(document.getElementById('setor-destino-select').value) || null,
+            // O backend espera objetos, não apenas IDs
+            estoque: estoqueId ? { id: estoqueId } : null,
+            usuario: usuarioId ? { id: usuarioId } : null,
+            setorOrigem: setorOrigemId ? { id: setorOrigemId } : null,
+            setorDestino: setorDestinoId ? { id: setorDestinoId } : null,
             tipoMovimentacao: document.getElementById('type').value,
             quantidade: parseInt(document.getElementById('amount').value) || 0,
             dataMovimentacao: document.getElementById('date').value
@@ -535,10 +616,10 @@ class MovimentacaoManager {
     validateForm(data) {
         const errors = [];
 
-        if (!data.estoqueId) errors.push('Selecione um produto');
-        if (!data.usuarioId) errors.push('Selecione um usuário');
-        if (!data.setorOrigemId) errors.push('Selecione o setor de origem');
-        if (!data.setorDestinoId) errors.push('Selecione o setor de destino');
+        if (!data.estoque || !data.estoque.id) errors.push('Selecione um produto');
+        if (!data.usuario || !data.usuario.id) errors.push('Selecione um usuário');
+        if (!data.setorOrigem || !data.setorOrigem.id) errors.push('Selecione o setor de origem');
+        if (!data.setorDestino || !data.setorDestino.id) errors.push('Selecione o setor de destino');
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
         if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
         if (!data.dataMovimentacao) errors.push('Selecione a data da movimentação');
@@ -548,6 +629,7 @@ class MovimentacaoManager {
             return false;
         }
 
+        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso:', data);
         return true;
     }
 

@@ -179,36 +179,14 @@ class ApiManager {
             console.log(`[ESTOQUE] Chamando endpoint: /estoque`);
             const result = await this.request('/estoque');
             
+            console.log(`[ESTOQUE] Resposta bruta da API:`, result);
+            
             if (result.success && result.data) {
-                let normalizedResult;
-                
-                if (Array.isArray(result.data)) {
-                    normalizedResult = {
-                        content: result.data.map(item => this.normalizeEstoqueItem(item)),
-                        totalElements: result.data.length,
-                        totalPages: 1,
-                        number: 0,
-                        size: result.data.length
-                    };
-                } else if (result.data.content) {
-                    normalizedResult = {
-                        ...result.data,
-                        content: result.data.content.map(item => this.normalizeEstoqueItem(item))
-                    };
-                } else {
-                    normalizedResult = {
-                        content: [this.normalizeEstoqueItem(result.data)],
-                        totalElements: 1,
-                        totalPages: 1,
-                        number: 0,
-                        size: 1
-                    };
-                }
-                
-                console.log(`[ESTOQUE] ✅ Sucesso: ${normalizedResult.content.length} itens`);
-                return normalizedResult;
+                // Retorna os dados diretamente, seja paginado ou não
+                console.log(`[ESTOQUE] ✅ Sucesso na API - Retornando dados:`, result.data);
+                return result.data;
             } else {
-                console.warn('[ESTOQUE] Resposta vazia ou erro, usando dados mockados');
+                console.warn('[ESTOQUE] Resposta não possui success=true ou data, usando dados mockados');
                 return this.getMockedEstoques();
             }
         } catch (error) {
