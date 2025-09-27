@@ -457,10 +457,18 @@ class MovimentacaoManager {
         // Limpar formulário
         form.reset();
         
-        // Definir data padrão como hoje
+        // Definir data padrão como hoje e data mínima
         const dateInput = document.getElementById('date');
-        if (dateInput && !movimentacao) {
-            dateInput.value = new Date().toISOString().split('T')[0];
+        if (dateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Definir data mínima como hoje
+            dateInput.setAttribute('min', today);
+            
+            // Se não for edição, definir data padrão como hoje
+            if (!movimentacao) {
+                dateInput.value = today;
+            }
         }
         
         // Preencher dados se for edição
@@ -617,6 +625,20 @@ class MovimentacaoManager {
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
         if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
         if (!data.dataMovimentacao) errors.push('Selecione a data da movimentação');
+
+        // Validar se a data não é anterior à data atual
+        if (data.dataMovimentacao) {
+            const dataMovimentacao = new Date(data.dataMovimentacao);
+            const dataAtual = new Date();
+            
+            // Zerar as horas para comparar apenas as datas
+            dataMovimentacao.setHours(0, 0, 0, 0);
+            dataAtual.setHours(0, 0, 0, 0);
+            
+            if (dataMovimentacao < dataAtual) {
+                errors.push('A data da movimentação não pode ser anterior à data atual');
+            }
+        }
 
         if (errors.length > 0) {
             this.showNotification(errors.join('<br>'), 'error');

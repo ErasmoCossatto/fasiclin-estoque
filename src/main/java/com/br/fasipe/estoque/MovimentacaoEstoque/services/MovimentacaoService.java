@@ -72,6 +72,14 @@ public class MovimentacaoService {
             movimentacao.setDataMovimentacao(LocalDate.now());
         }
         
+        // Validar se a data não é anterior à data atual
+        LocalDate dataAtual = LocalDate.now();
+        if (movimentacao.getDataMovimentacao().isBefore(dataAtual)) {
+            throw new IllegalArgumentException(
+                String.format("Data da movimentação não pode ser anterior à data atual. Data informada: %s, Data atual: %s", 
+                    movimentacao.getDataMovimentacao(), dataAtual));
+        }
+        
         // Validar se as entidades relacionadas existem
         validateRelatedEntities(movimentacao);
         
