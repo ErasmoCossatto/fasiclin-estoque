@@ -329,6 +329,11 @@ class MovimentacaoManager {
         const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
         const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
         
+        // Formatar origem e destino
+        const origem = movimentacao.setorOrigem?.nome || 'N/A';
+        const destino = movimentacao.setorDestino?.nome || 'N/A';
+        const fluxo = `${origem} → ${destino}`;
+        
         return `
             <tr data-id="${movimentacao.id}">
                 <td>${movimentacao.id}</td>
@@ -338,6 +343,7 @@ class MovimentacaoManager {
                         ${tipoIcon} ${movimentacao.tipoMovimentacao}
                     </span>
                 </td>
+                <td class="flow-info">${fluxo}</td>
                 <td>${movimentacao.quantidade}</td>
                 <td>${this.formatDate(movimentacao.dataMovimentacao)}</td>
                 <td>${movimentacao.usuario?.login || 'N/A'}</td>
@@ -360,6 +366,10 @@ class MovimentacaoManager {
         const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
         const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
         
+        // Formatar origem e destino
+        const origem = movimentacao.setorOrigem?.nome || 'N/A';
+        const destino = movimentacao.setorDestino?.nome || 'N/A';
+        
         return `
             <div class="mobile-card" data-id="${movimentacao.id}">
                 <div class="mobile-card-header">
@@ -372,6 +382,10 @@ class MovimentacaoManager {
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Produto:</span>
                         <span class="mobile-card-value">${movimentacao.nomeProduto || 'N/A'}</span>
+                    </div>
+                    <div class="mobile-card-row">
+                        <span class="mobile-card-label">De → Para:</span>
+                        <span class="mobile-card-value">${origem} → ${destino}</span>
                     </div>
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Quantidade:</span>
@@ -400,7 +414,7 @@ class MovimentacaoManager {
     renderEmptyState() {
         const emptyHTML = `
             <tr>
-                <td colspan="7" class="empty-state">
+                <td colspan="8" class="empty-state">
                     <h3>📦 Nenhuma movimentação encontrada</h3>
                     <p>Comece criando uma nova movimentação de estoque</p>
                     <button class="btn btn-primary" onclick="movimentacaoManager.showModal()">
@@ -457,17 +471,18 @@ class MovimentacaoManager {
         // Limpar formulário
         form.reset();
         
-        // Definir data padrão como hoje e data mínima
+        // Definir data padrão como hoje e data mínima (hoje)
         const dateInput = document.getElementById('date');
         if (dateInput) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
             
-            // Definir data mínima como hoje
-            dateInput.setAttribute('min', today);
+            // Definir data mínima como hoje (permite hoje e futuro)
+            dateInput.setAttribute('min', todayStr);
             
             // Se não for edição, definir data padrão como hoje
             if (!movimentacao) {
-                dateInput.value = today;
+                dateInput.value = todayStr;
             }
         }
         

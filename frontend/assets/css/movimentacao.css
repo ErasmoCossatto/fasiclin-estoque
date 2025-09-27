@@ -184,6 +184,17 @@ tbody td {
     font-weight: var(--font-weight-semibold);
 }
 
+/* Informação de fluxo (origem → destino) */
+.flow-info {
+    font-size: var(--font-size-sm);
+    color: var(--gray-600);
+    font-weight: var(--font-weight-medium);
+    background: var(--background-tertiary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-md);
+    white-space: nowrap;
+}
+
 /* Botões de ação Apple-style */
 .action-buttons {
     display: flex;
