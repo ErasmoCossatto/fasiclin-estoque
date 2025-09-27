@@ -76,6 +76,9 @@ public class MovimentacaoService {
         validateRelatedEntities(movimentacao);
         
         try {
+            // Atualizar as quantidades dos estoques antes de salvar a movimentação
+            atualizarQuantidadesEstoque(movimentacao);
+            
             Movimentacao novaMovimentacao = movimentacaoRepository.save(movimentacao);
             log.info("Movimentação inserida com sucesso - ID: {}", novaMovimentacao.getId());
             return novaMovimentacao;
@@ -83,6 +86,50 @@ public class MovimentacaoService {
             log.error("Erro ao inserir movimentação: {}", e.getMessage(), e);
             throw new RuntimeException("Erro ao registrar movimentação: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Atualiza as quantidades dos estoques com base na movimentação
+     * - ENTRADA: incrementa a quantidade no estoque
+     * - SAIDA: decrementa a quantidade no estoque
+     * 
+     * Para movimentações entre setores, busca estoques de origem e destino
+     */
+    private void atualizarQuantidadesEstoque(Movimentacao movimentacao) {
+        Estoque estoqueAtual = movimentacao.getEstoque();
+        Integer quantidade = movimentacao.getQuantidade();
+        TipoMovimentacao tipo = movimentacao.getTipoMovimentacao();
+        
+        log.info("Atualizando estoque - ID: {}, Tipo: {}, Quantidade: {}, Estoque Atual: {}", 
+                estoqueAtual.getId(), tipo, quantidade, estoqueAtual.getQuantidadeEstoque());
+        
+        if (tipo == TipoMovimentacao.ENTRADA) {
+            // ENTRADA: Adiciona ao estoque
+            int novaQuantidade = estoqueAtual.getQuantidadeEstoque() + quantidade;
+            estoqueAtual.setQuantidadeEstoque(novaQuantidade);
+            estoqueRepository.save(estoqueAtual);
+            
+            log.info("ENTRADA executada - Estoque {} aumentou de {} para {}", 
+                    estoqueAtual.getId(), estoqueAtual.getQuantidadeEstoque() - quantidade, novaQuantidade);
+                    
+        } else if (tipo == TipoMovimentacao.SAIDA) {
+            // SAIDA: Subtrai do estoque
+            if (estoqueAtual.getQuantidadeEstoque() < quantidade) {
+                throw new IllegalArgumentException(String.format(
+                    "Quantidade insuficiente no estoque. Disponível: %d, Solicitado: %d", 
+                    estoqueAtual.getQuantidadeEstoque(), quantidade));
+            }
+            
+            int novaQuantidade = estoqueAtual.getQuantidadeEstoque() - quantidade;
+            estoqueAtual.setQuantidadeEstoque(novaQuantidade);
+            estoqueRepository.save(estoqueAtual);
+            
+            log.info("SAIDA executada - Estoque {} diminuiu de {} para {}", 
+                    estoqueAtual.getId(), estoqueAtual.getQuantidadeEstoque() + quantidade, novaQuantidade);
+        }
+        
+        // Atualizar a referência na movimentação
+        movimentacao.setEstoque(estoqueAtual);
     }
     
     /**

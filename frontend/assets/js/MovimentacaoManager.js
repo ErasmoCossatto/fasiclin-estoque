@@ -51,14 +51,6 @@ class MovimentacaoManager {
             form.addEventListener('submit', (e) => this.handleSave(e));
         }
 
-        // Pesquisa
-        const searchInput = document.querySelector('.search-input');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.handleSearch(e.target.value);
-            });
-        }
-
         // Fechar modal ao clicar no overlay
         const modal = document.getElementById('movement-modal');
         if (modal) {
@@ -682,32 +674,6 @@ class MovimentacaoManager {
         } finally {
             this.setLoading(false);
         }
-    }
-
-    /**
-     * Manipula pesquisa
-     */
-    handleSearch(query) {
-        const filtered = this.movimentacoes.filter(mov => {
-            const searchFields = [
-                mov.produto?.nome,
-                mov.tipo,
-                mov.setorOrigemId?.nome,
-                mov.setorDestinoId?.nome,
-                mov.usuario?.nome,
-                mov.observacoes
-            ];
-            
-            return searchFields.some(field => 
-                field && field.toLowerCase().includes(query.toLowerCase())
-            );
-        });
-
-        // Temporariamente substituir dados para renderização
-        const originalData = this.movimentacoes;
-        this.movimentacoes = filtered;
-        this.renderMovimentacoes();
-        this.movimentacoes = originalData;
     }
 
     /**
