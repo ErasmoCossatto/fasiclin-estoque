@@ -646,14 +646,14 @@ class MovimentacaoManager {
      */
     getFormData() {
         const estoqueId = parseInt(document.getElementById('produtoSelect').value);
-        // Usuário padrão do sistema (admin) - ID 1
-        const usuarioId = 1; // Será configurado como usuário logado no futuro
+        // Usuário será fornecido por variável global no futuro - por enquanto null para testes
+        const usuarioId = null; // Removido temporariamente para testes
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
         
         console.log('[MovimentacaoManager] Coletando dados do formulário:', {
             estoqueId,
-            usuarioId: usuarioId + ' (padrão do sistema)',
+            usuarioId: 'null (modo teste - virá de variável global)',
             setorOrigemId,
             setorDestinoId
         });
@@ -661,7 +661,7 @@ class MovimentacaoManager {
         return {
             // O backend espera objetos, não apenas IDs - usando estoque corretamente
             estoque: estoqueId ? { id: estoqueId } : null,
-            usuario: usuarioId ? { id: usuarioId } : null,
+            usuario: usuarioId ? { id: usuarioId } : null, // Pode ser null para testes
             setorOrigem: setorOrigemId ? { id: setorOrigemId } : null,
             setorDestino: setorDestinoId ? { id: setorDestinoId } : null,
             tipoMovimentacao: document.getElementById('type').value,
@@ -677,7 +677,8 @@ class MovimentacaoManager {
         const errors = [];
 
         if (!data.estoque || !data.estoque.id) errors.push('Selecione um produto');
-        if (!data.usuario || !data.usuario.id) errors.push('Selecione um usuário');
+        // Usuário não é mais obrigatório para testes
+        // if (!data.usuario || !data.usuario.id) errors.push('Selecione um usuário');
         if (!data.setorOrigem || !data.setorOrigem.id) errors.push('Selecione o setor de origem');
         if (!data.setorDestino || !data.setorDestino.id) errors.push('Selecione o setor de destino');
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
@@ -705,7 +706,7 @@ class MovimentacaoManager {
             }
         }
 
-        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso:', data);
+        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso (sem usuário para testes):', data);
         return true;
     }
 

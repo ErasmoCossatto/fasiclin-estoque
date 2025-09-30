@@ -74,50 +74,62 @@ public class MovimentacaoService {
     public Movimentacao insert(Movimentacao movimentacao) {
         log.info("Inserindo nova movimentação - Tipo: {}, Quantidade: {}", 
                 movimentacao.getTipoMovimentacao(), movimentacao.getQuantidade());
-                
-        // Validações básicas
-        if (movimentacao.getQuantidade() == null || movimentacao.getQuantidade() <= 0) {
-            throw new IllegalArgumentException("Quantidade deve ser maior que zero");
-        }
         
-        if (movimentacao.getDataMovimentacao() == null) {
-            movimentacao.setDataMovimentacao(LocalDate.now());
-        }
+        // TEMPORÁRIO: Validação de usuário desabilitada para testes
+        // TODO: Reativar quando variável global de usuário estiver disponível
         
-        // Temporariamente removido até criar coluna HORAMOVIM no banco
-        /*
-        // Definir hora atual se não informada (opcional)
         try {
-            if (movimentacao.getHoraMovimentacao() == null) {
-                movimentacao.setHoraMovimentacao(LocalTime.now());
+            // Validações básicas
+            if (movimentacao.getQuantidade() == null || movimentacao.getQuantidade() <= 0) {
+                throw new IllegalArgumentException("Quantidade deve ser maior que zero");
             }
-        } catch (Exception e) {
-            // Ignorar erro se coluna HORAMOVIM não existir ainda
-            log.warn("Coluna HORAMOVIM pode não existir no banco: {}", e.getMessage());
-        }
-        */
-        
-        // Validar se a data é exatamente hoje
-        LocalDate dataAtual = LocalDate.now();
-        if (!movimentacao.getDataMovimentacao().equals(dataAtual)) {
-            throw new IllegalArgumentException(
-                String.format("Movimentação só pode ser realizada na data atual. Data informada: %s, Data atual: %s", 
-                    movimentacao.getDataMovimentacao(), dataAtual));
-        }
-        
-        // Validar se as entidades relacionadas existem
-        validateRelatedEntities(movimentacao);
-        
-        try {
+            
+            if (movimentacao.getDataMovimentacao() == null) {
+                movimentacao.setDataMovimentacao(LocalDate.now());
+                log.info("Data de movimentação definida automaticamente: {}", movimentacao.getDataMovimentacao());
+            }
+            
+            // Temporariamente removido até criar coluna HORAMOVIM no banco
+            /*
+            // Definir hora atual se não informada (opcional)
+            try {
+                if (movimentacao.getHoraMovimentacao() == null) {
+                    movimentacao.setHoraMovimentacao(LocalTime.now());
+                }
+            } catch (Exception e) {
+                // Ignorar erro se coluna HORAMOVIM não existir ainda
+                log.warn("Coluna HORAMOVIM pode não existir no banco: {}", e.getMessage());
+            }
+            */
+            
+            // Validar se a data é exatamente hoje
+            LocalDate dataAtual = LocalDate.now();
+            if (!movimentacao.getDataMovimentacao().equals(dataAtual)) {
+                throw new IllegalArgumentException(
+                    String.format("Movimentação só pode ser realizada na data atual. Data informada: %s, Data atual: %s", 
+                        movimentacao.getDataMovimentacao(), dataAtual));
+            }
+            
+            log.info("Validações básicas concluídas com sucesso");
+            
+            // Validar se as entidades relacionadas existem
+            validateRelatedEntities(movimentacao);
+            
+            log.info("Iniciando atualização das quantidades de estoque...");
             // Atualizar as quantidades dos estoques antes de salvar a movimentação
             atualizarQuantidadesEstoque(movimentacao);
             
+            log.info("Salvando movimentação no banco de dados...");
             Movimentacao novaMovimentacao = movimentacaoRepository.save(movimentacao);
             log.info("Movimentação inserida com sucesso - ID: {}", novaMovimentacao.getId());
             return novaMovimentacao;
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Erro de validação ao inserir movimentação: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("Erro ao inserir movimentação: {}", e.getMessage(), e);
-            throw new RuntimeException("Erro ao registrar movimentação: " + e.getMessage());
+            log.error("Erro inesperado ao inserir movimentação: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro ao registrar movimentação: " + e.getMessage(), e);
         }
     }
     
@@ -196,7 +208,7 @@ public class MovimentacaoService {
             Produto produto = buscarProduto(dto.getIdProduto());
             Setor setorOrigem = buscarSetor(dto.getIdSetorOrigem());
             Setor setorDestino = buscarSetor(dto.getIdSetorDestino());
-            Usuario usuario = buscarUsuario(dto.getIdUsuario());
+            Usuario usuario = buscarUsuario(dto.getIdUsuario()); // Pode retornar null
             
             // 3. Verificar e obter estoque de origem
             Estoque estoqueOrigem = buscarEstoqueNoSetor(produto, setorOrigem);
@@ -246,8 +258,18 @@ public class MovimentacaoService {
     }
     
     private Usuario buscarUsuario(Integer idUsuario) {
-        return usuarioRepository.findById(idUsuario)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + idUsuario));
+        if (idUsuario == null) {
+            log.info("ID do usuário é nulo, retornando null para teste");
+            return null;
+        }
+        
+        Optional<Usuario> usuario = usuarioRepository.findById(idUsuario);
+        if (usuario.isEmpty()) {
+            log.warn("Usuário com ID {} não encontrado, retornando null para teste", idUsuario);
+            return null;
+        }
+        
+        return usuario.get();
     }
     
     private Estoque buscarEstoqueNoSetor(Produto produto, Setor setor) {
@@ -322,6 +344,8 @@ public class MovimentacaoService {
     }
     
     private void validateRelatedEntities(Movimentacao movimentacao) {
+        log.info("Iniciando validação de entidades relacionadas...");
+        
         // Validar estoque
         if (movimentacao.getEstoque() == null || movimentacao.getEstoque().getId() == null) {
             throw new IllegalArgumentException("Estoque deve ser informado");
@@ -329,6 +353,8 @@ public class MovimentacaoService {
         
         // Primeiro tenta buscar por ID de estoque diretamente
         Integer idRecebido = movimentacao.getEstoque().getId();
+        log.info("Validando estoque com ID: {}", idRecebido);
+        
         Optional<Estoque> estoque = estoqueRepository.findById(idRecebido);
         
         if (estoque.isEmpty()) {
@@ -337,17 +363,21 @@ public class MovimentacaoService {
             Optional<Produto> produto = produtoRepository.findById(idRecebido);
             if (produto.isPresent()) {
                 // Busca estoque que contém esse produto
+                log.info("Produto encontrado, buscando estoques para produto ID: {}", idRecebido);
                 List<Estoque> estoquesDoProduto = estoqueRepository.findByIdProduto(idRecebido);
+                log.info("Encontrados {} estoques para o produto", estoquesDoProduto.size());
+                
                 if (!estoquesDoProduto.isEmpty()) {
                     // Usa o primeiro estoque encontrado para esse produto
                     estoque = Optional.of(estoquesDoProduto.get(0));
-                    log.info("Encontrou estoque ID {} para produto ID {}", estoque.get().getId(), idRecebido);
+                    log.info("Usando estoque ID {} para produto ID {}", estoque.get().getId(), idRecebido);
                 } else {
                     // Se o produto não tem estoque, vamos criar um temporário
-                    log.warn("Produto {} não possui estoque cadastrado", idRecebido);
+                    log.error("Produto {} não possui estoque cadastrado", idRecebido);
                     throw new IllegalArgumentException("Produto não possui estoque cadastrado. Produto ID: " + idRecebido);
                 }
             } else {
+                log.error("Nem estoque nem produto encontrado com ID: {}", idRecebido);
                 throw new IllegalArgumentException("Nem estoque nem produto encontrado com ID: " + idRecebido);
             }
         } else {
@@ -355,44 +385,59 @@ public class MovimentacaoService {
         }
         
         movimentacao.setEstoque(estoque.get());
+        log.info("Estoque validado com sucesso: ID {}", estoque.get().getId());
         
-        // Validar usuário
-        if (movimentacao.getUsuario() == null || movimentacao.getUsuario().getId() == null) {
-            throw new IllegalArgumentException("Usuário deve ser informado");
+        // Validar usuário (OPCIONAL - para testes)
+        if (movimentacao.getUsuario() != null && movimentacao.getUsuario().getId() != null) {
+            log.info("Validando usuário com ID: {}", movimentacao.getUsuario().getId());
+            Optional<Usuario> usuario = usuarioRepository.findById(movimentacao.getUsuario().getId());
+            if (usuario.isEmpty()) {
+                log.warn("Usuário com ID {} não encontrado, prosseguindo sem usuário para testes", movimentacao.getUsuario().getId());
+                movimentacao.setUsuario(null);
+            } else {
+                movimentacao.setUsuario(usuario.get());
+                log.info("Usuário validado com sucesso: ID {}", usuario.get().getId());
+            }
+        } else {
+            log.info("Movimentação sendo realizada sem usuário (modo teste)");
+            movimentacao.setUsuario(null);
         }
-        
-        Optional<Usuario> usuario = usuarioRepository.findById(movimentacao.getUsuario().getId());
-        if (usuario.isEmpty()) {
-            throw new IllegalArgumentException("Usuário não encontrado");
-        }
-        movimentacao.setUsuario(usuario.get());
         
         // Validar setor origem
         if (movimentacao.getSetorOrigem() == null || movimentacao.getSetorOrigem().getId() == null) {
             throw new IllegalArgumentException("Setor de origem deve ser informado");
         }
         
+        log.info("Validando setor de origem com ID: {}", movimentacao.getSetorOrigem().getId());
         Optional<Setor> setorOrigem = setorRepository.findById(movimentacao.getSetorOrigem().getId());
         if (setorOrigem.isEmpty()) {
-            throw new IllegalArgumentException("Setor de origem não encontrado");
+            log.error("Setor de origem não encontrado: {}", movimentacao.getSetorOrigem().getId());
+            throw new IllegalArgumentException("Setor de origem não encontrado: " + movimentacao.getSetorOrigem().getId());
         }
         movimentacao.setSetorOrigem(setorOrigem.get());
+        log.info("Setor de origem validado com sucesso: {} - {}", setorOrigem.get().getId(), setorOrigem.get().getNome());
         
         // Validar setor destino
         if (movimentacao.getSetorDestino() == null || movimentacao.getSetorDestino().getId() == null) {
             throw new IllegalArgumentException("Setor de destino deve ser informado");
         }
         
+        log.info("Validando setor de destino com ID: {}", movimentacao.getSetorDestino().getId());
         Optional<Setor> setorDestino = setorRepository.findById(movimentacao.getSetorDestino().getId());
         if (setorDestino.isEmpty()) {
-            throw new IllegalArgumentException("Setor de destino não encontrado");
+            log.error("Setor de destino não encontrado: {}", movimentacao.getSetorDestino().getId());
+            throw new IllegalArgumentException("Setor de destino não encontrado: " + movimentacao.getSetorDestino().getId());
         }
         movimentacao.setSetorDestino(setorDestino.get());
+        log.info("Setor de destino validado com sucesso: {} - {}", setorDestino.get().getId(), setorDestino.get().getNome());
         
         // Validar se setor origem é diferente do destino
         if (movimentacao.getSetorOrigem().getId().equals(movimentacao.getSetorDestino().getId())) {
+            log.error("Setor de origem e destino são iguais: {}", movimentacao.getSetorOrigem().getId());
             throw new IllegalArgumentException("Setor de origem deve ser diferente do setor de destino");
         }
+        
+        log.info("Todas as entidades relacionadas foram validadas com sucesso");
     }
 
     public Movimentacao update(Integer id, Movimentacao movimentacao) {

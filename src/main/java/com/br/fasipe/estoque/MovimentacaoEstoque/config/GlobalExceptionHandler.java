@@ -157,10 +157,16 @@ public class GlobalExceptionHandler {
         
         log.error("Erro de runtime: {}", ex.getMessage(), ex);
         
+        // Se a mensagem for específica de movimentação, usa ela diretamente
+        String message = "Erro interno do servidor. Tente novamente.";
+        if (ex.getMessage() != null && ex.getMessage().contains("movimentação")) {
+            message = ex.getMessage();
+        }
+        
         ErrorResponse errorResponse = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
             "Internal Server Error",
-            "Erro interno do servidor. Tente novamente.",
+            message,
             request.getDescription(false).replace("uri=", "")
         );
 
