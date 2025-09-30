@@ -290,6 +290,130 @@ tbody td {
     background: var(--background-tertiary);
 }
 
+/* Modal largo para duas colunas */
+.modal-wide {
+    max-width: 1600px;
+    width: 98vw;
+    max-height: 95vh;
+}
+
+/* Layout de duas colunas no modal */
+.modal-two-columns {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-xl);
+    max-height: 75vh;
+    overflow: hidden;
+}
+
+/* Painel de estoque */
+.stock-panel {
+    background: var(--background-tertiary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+}
+
+.stock-panel h4 {
+    margin: 0 0 var(--spacing-lg) 0;
+    color: var(--gray-800);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+.stock-list {
+    max-height: 600px;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--border-radius-md);
+}
+
+.stock-item {
+    background: var(--background-primary);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    transition: all var(--transition-base);
+}
+
+.stock-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.stock-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+}
+
+.stock-item-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--gray-800);
+    font-size: var(--font-size-sm);
+}
+
+.stock-item-quantity {
+    background: var(--primary-ultra-light);
+    color: var(--primary-color);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+}
+
+.stock-item-sector {
+    color: var(--gray-600);
+    font-size: var(--font-size-xs);
+}
+
+.loading-stocks {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: var(--gray-500);
+    font-style: italic;
+}
+
+/* Grupos de estoque */
+.stock-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.stock-group-title {
+    color: var(--gray-700);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    margin: 0 0 var(--spacing-sm) 0;
+    padding: var(--spacing-xs) 0;
+    border-bottom: 1px solid var(--gray-300);
+}
+
+/* Indicadores de quantidade */
+.low-stock {
+    background: var(--error-light) !important;
+    color: var(--error-dark) !important;
+}
+
+.medium-stock {
+    background: #fef3cd !important;
+    color: #996f00 !important;
+}
+
+.good-stock {
+    background: var(--success-light) !important;
+    color: var(--success-dark) !important;
+}
+
+/* Formulário de movimentação */
+.movement-form {
+    background: var(--background-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+}
+
 .modal-header .title {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-semibold);
@@ -486,6 +610,17 @@ tbody td {
         width: 95vw;
         max-height: 95vh;
         margin: var(--spacing-sm);
+    }
+    
+    /* Modal responsivo - coluna única no mobile */
+    .modal-wide {
+        width: 95vw;
+        max-width: none;
+    }
+    
+    .modal-two-columns {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
     }
     
     .modal-footer {

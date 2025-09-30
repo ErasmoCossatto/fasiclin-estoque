@@ -8,6 +8,7 @@ class MovimentacaoManager {
         this.estoques = [];
         this.usuarios = [];
         this.setores = [];
+        this.estoquePorSetor = [];
         this.currentEditId = null;
         this.isLoading = false;
         
@@ -83,8 +84,9 @@ class MovimentacaoManager {
             const promises = [
                 this.loadMovimentacoes(),
                 this.loadProdutos(), // Carrega estoques (que contêm produtos)
-                this.loadUsuarios(),
-                this.loadSetores()
+                // this.loadUsuarios(), // Removido - usuário será definido automaticamente
+                this.loadSetores(),
+                this.loadEstoquePorSetor() // Nova função para carregar estoque por setor
             ];
             
             await Promise.all(promises);
@@ -203,6 +205,52 @@ class MovimentacaoManager {
             console.error('[MovimentacaoManager] Erro ao carregar setores:', error);
             this.setores = [];
         }
+    }
+
+    /**
+     * Carrega estoque agrupado por setor
+     */
+    async loadEstoquePorSetor() {
+        try {
+            console.log('[MovimentacaoManager] Carregando estoque por setor...');
+            
+            // Como não temos o endpoint /estoque/por-setor implementado,
+            // vamos usar dados mockados que representam estoque por setor
+            this.estoquePorSetor = this.getMockedEstoquePorSetor();
+            
+            console.log(`[MovimentacaoManager] ✅ ${this.estoquePorSetor.length} registros de estoque carregados (mockado)`);
+            
+        } catch (error) {
+            console.error('[MovimentacaoManager] Erro ao carregar estoque por setor:', error);
+            this.estoquePorSetor = this.getMockedEstoquePorSetor();
+        }
+    }
+
+    /**
+     * Retorna dados mockados de estoque por setor
+     */
+    getMockedEstoquePorSetor() {
+        return [
+            // Setor Farmácia
+            { id: 1, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 150, setor: { nome: 'Farmácia' } },
+            { id: 2, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 200, setor: { nome: 'Farmácia' } },
+            { id: 3, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 80, setor: { nome: 'Farmácia' } },
+            
+            // Setor Enfermagem
+            { id: 4, produto: { nome: 'Seringa 10ml' }, quantidadeEstoque: 500, setor: { nome: 'Enfermagem' } },
+            { id: 5, produto: { nome: 'Luvas Descartáveis' }, quantidadeEstoque: 20, setor: { nome: 'Enfermagem' } },
+            { id: 6, produto: { nome: 'Gaze Estéril' }, quantidadeEstoque: 100, setor: { nome: 'Enfermagem' } },
+            
+            // Setor Compras (NOVO)
+            { id: 7, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 500, setor: { nome: 'Compras' } },
+            { id: 8, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 300, setor: { nome: 'Compras' } },
+            { id: 9, produto: { nome: 'Material Cirúrgico' }, quantidadeEstoque: 50, setor: { nome: 'Compras' } },
+            
+            // Setor Estoque (NOVO)
+            { id: 10, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 400, setor: { nome: 'Estoque' } },
+            { id: 11, produto: { nome: 'Seringa 10ml' }, quantidadeEstoque: 1000, setor: { nome: 'Estoque' } },
+            { id: 12, produto: { nome: 'Equipamentos' }, quantidadeEstoque: 25, setor: { nome: 'Estoque' } }
+        ];
     }
 
     /**
@@ -471,19 +519,14 @@ class MovimentacaoManager {
         // Limpar formulário
         form.reset();
         
-        // Definir data padrão como hoje e data mínima (hoje)
+        // Definir data como hoje (automática)
         const dateInput = document.getElementById('date');
         if (dateInput) {
             const today = new Date();
             const todayStr = today.toISOString().split('T')[0];
             
-            // Definir data mínima como hoje (permite hoje e futuro)
-            dateInput.setAttribute('min', todayStr);
-            
-            // Se não for edição, definir data padrão como hoje
-            if (!movimentacao) {
-                dateInput.value = todayStr;
-            }
+            // Sempre definir como hoje (campo hidden)
+            dateInput.value = todayStr;
         }
         
         // Preencher dados se for edição
@@ -495,6 +538,9 @@ class MovimentacaoManager {
         modal.classList.remove('hidden');
         modal.classList.add('show');
         document.body.classList.add('modal-open');
+        
+        // Renderizar painel de estoque
+        this.renderStockPanel();
         
         // Foco no primeiro campo
         const firstInput = form.querySelector('input[type="number"], select');
@@ -586,6 +632,9 @@ class MovimentacaoManager {
                 this.hideModal();
                 await this.loadMovimentacoes();
                 this.renderMovimentacoes();
+                
+                // Atualizar painel de estoque após movimentação
+                await this.atualizarPainelEstoque();
             } else {
                 console.error('[MovimentacaoManager] Erro na resposta da API:', response);
                 this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
@@ -604,13 +653,14 @@ class MovimentacaoManager {
      */
     getFormData() {
         const estoqueId = parseInt(document.getElementById('produtoSelect').value);
-        const usuarioId = parseInt(document.getElementById('usuario-select').value);
+        // Usuário padrão do sistema (admin) - ID 1
+        const usuarioId = 1; // Será configurado como usuário logado no futuro
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
         
         console.log('[MovimentacaoManager] Coletando dados do formulário:', {
             estoqueId,
-            usuarioId,
+            usuarioId: usuarioId + ' (padrão do sistema)',
             setorOrigemId,
             setorDestinoId
         });
@@ -639,36 +689,26 @@ class MovimentacaoManager {
         if (!data.setorDestino || !data.setorDestino.id) errors.push('Selecione o setor de destino');
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
         if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
-        if (!data.dataMovimentacao) errors.push('Selecione a data da movimentação');
 
-        // Validar se a data não é anterior à data atual
-        if (data.dataMovimentacao) {
-            const dataMovimentacao = new Date(data.dataMovimentacao);
-            const dataAtual = new Date();
-            
-            // Zerar as horas para comparar apenas as datas
-            dataMovimentacao.setHours(0, 0, 0, 0);
-            dataAtual.setHours(0, 0, 0, 0);
-            
-            if (dataMovimentacao < dataAtual) {
-                errors.push('A data da movimentação não pode ser anterior à data atual');
-            }
-        }
+        // Data é automática (hoje), não precisa validar
 
         if (errors.length > 0) {
             this.showNotification(errors.join('<br>'), 'error');
             return false;
         }
 
-        // Validação de produto para movimentação
-        if (data.estoque && data.estoque.id && data.quantidade) {
-            const produtoSelecionado = this.produtos?.find(p => p.id == data.estoque.id);
+        // Validação de estoque disponível para SAÍDA
+        if (data.tipoMovimentacao === 'SAIDA' && data.estoque && data.estoque.id && data.quantidade) {
+            const estoqueDisponivel = this.getEstoqueDisponivel(data.estoque.id);
             
-            if (produtoSelecionado) {
-                const produtoValido = await this.validarEstoqueMaximo(produtoSelecionado, data.quantidade);
-                if (!produtoValido) {
-                    return false; // Validação de produto falhou
-                }
+            if (estoqueDisponivel !== null && data.quantidade > estoqueDisponivel) {
+                this.showNotification(
+                    `❌ Quantidade acima do estoque disponível!<br>` +
+                    `Disponível: ${estoqueDisponivel}<br>` +
+                    `Solicitado: ${data.quantidade}`, 
+                    'error'
+                );
+                return false;
             }
         }
 
@@ -1073,12 +1113,167 @@ class MovimentacaoManager {
     }
 
     /**
-     * Utilitários
+     * Obtém a quantidade disponível em estoque para um produto
      */
+    getEstoqueDisponivel(estoqueId) {
+        if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
+            console.warn('[MovimentacaoManager] Estoque por setor não carregado');
+            return null;
+        }
+
+        const estoque = this.estoquePorSetor.find(e => e.id == estoqueId);
+        if (estoque) {
+            return estoque.quantidadeEstoque || 0;
+        }
+
+        // Se não encontrar no estoque por setor, tentar nos produtos
+        if (this.produtos && this.produtos.length > 0) {
+            const produto = this.produtos.find(p => p.id == estoqueId);
+            if (produto && produto.stqMax !== undefined) {
+                return produto.stqMax;
+            }
+        }
+
+        console.warn(`[MovimentacaoManager] Estoque não encontrado para ID: ${estoqueId}`);
+        return null;
+    }
+
+    /**
+     * Atualiza o painel de estoque após uma movimentação
+     */
+    async atualizarPainelEstoque() {
+        await this.loadEstoquePorSetor();
+        this.renderStockPanel();
+    }
+
+    /**
+     * Renderiza o painel de estoque por setor
+     */
+    renderStockPanel() {
+        const stockContainer = document.getElementById('stock-by-sector');
+        if (!stockContainer) {
+            console.warn('[MovimentacaoManager] Container de estoque não encontrado');
+            return;
+        }
+
+        console.log('[ESTOQUE] Renderizando painel. Dados:', this.estoquePorSetor);
+
+        if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
+            stockContainer.innerHTML = '<div class="loading-stocks">Nenhum estoque encontrado</div>';
+            return;
+        }
+
+        // Agrupar estoque por setor
+        const stockBySetor = this.groupStockBySetor(this.estoquePorSetor);
+        console.log('[ESTOQUE] Agrupado por setor:', stockBySetor);
+        
+        let html = '';
+        for (const [setor, produtos] of Object.entries(stockBySetor)) {
+            html += `
+                <div class="stock-group">
+                    <h5 class="stock-group-title">🏢 ${setor}</h5>
+                    ${produtos.map(estoque => this.createStockItem(estoque)).join('')}
+                </div>
+            `;
+        }
+
+        stockContainer.innerHTML = html || '<div class="loading-stocks">Nenhum produto encontrado</div>';
+        console.log('[ESTOQUE] HTML renderizado:', html.length > 0 ? 'OK' : 'VAZIO');
+    }
+
+    /**
+     * Agrupa estoque por setor
+     */
+    groupStockBySetor(estoques) {
+        const grouped = {};
+        
+        estoques.forEach(estoque => {
+            let setor = 'Sem Setor';
+            
+            if (estoque.setor && estoque.setor.nome) {
+                setor = estoque.setor.nome;
+            } else if (estoque.produto && estoque.produto.almoxarifado) {
+                setor = estoque.produto.almoxarifado.nome;
+            } else if (estoque.produto && estoque.produto.idAlmoxarifado) {
+                setor = `Almoxarifado ${estoque.produto.idAlmoxarifado}`;
+            }
+            
+            if (!grouped[setor]) {
+                grouped[setor] = [];
+            }
+            
+            grouped[setor].push(estoque);
+        });
+        
+        // Garantir que os setores apareçam numa ordem lógica
+        const sortedGrouped = {};
+        const ordem = ['Estoque', 'Compras', 'Farmácia', 'Enfermagem'];
+        
+        ordem.forEach(setorNome => {
+            if (grouped[setorNome]) {
+                sortedGrouped[setorNome] = grouped[setorNome];
+            }
+        });
+        
+        // Adicionar outros setores que não estão na ordem
+        Object.keys(grouped).forEach(setorNome => {
+            if (!ordem.includes(setorNome)) {
+                sortedGrouped[setorNome] = grouped[setorNome];
+            }
+        });
+        
+        return sortedGrouped;
+    }
+
+    /**
+     * Cria item de estoque para o painel
+     */
+     
+    createStockItem(estoque) {
+        const produto = estoque.produto || {};
+        const quantidade = estoque.quantidadeEstoque || 0;
+        const quantityClass = quantidade <= 10 ? 'low-stock' : quantidade <= 50 ? 'medium-stock' : 'good-stock';
+        
+        // Buscar nome do almoxarifado
+        let almoxarifado = 'Sem Setor';
+        if (produto.almoxarifado) {
+            almoxarifado = produto.almoxarifado.nome;
+        } else if (produto.idAlmoxarifado) {
+            almoxarifado = `Setor ${produto.idAlmoxarifado}`;
+        }
+        
+        return `
+            <div class="stock-item" data-produto-id="${produto.id}" data-estoque-id="${estoque.id}">
+                <div class="stock-item-header">
+                    <span class="stock-item-name">${produto.nome || 'Produto sem nome'}</span>
+                    <span class="stock-item-quantity ${quantityClass}">${quantidade}</span>
+                </div>
+                <div class="stock-item-sector">${almoxarifado}</div>
+            </div>
+        `;
+    }
     formatDate(dateString) {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
         return date.toLocaleDateString('pt-BR');
+    }
+
+    formatTime(timeString) {
+        if (!timeString) return 'N/A';
+        
+        // Se já está no formato HH:mm:ss, extrair apenas HH:mm
+        if (typeof timeString === 'string' && timeString.includes(':')) {
+            return timeString.substring(0, 5); // HH:mm
+        }
+        
+        // Se é um array [H, M, S], formatar
+        if (Array.isArray(timeString) && timeString.length >= 2) {
+            const hours = timeString[0].toString().padStart(2, '0');
+            const minutes = timeString[1].toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+        
+        return 'N/A';
     }
 
     getTipoIcon(tipo) {

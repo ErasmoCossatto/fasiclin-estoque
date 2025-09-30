@@ -2,7 +2,28 @@
 <html lang="pt-BR">
 
 <head>
-    <meta charset="UTF-8">
+    <meta                         <thead>
+                            <tr>
+                      <div class="form-group">
+                        <label for="produtoSelect">🏷️ Produto *</label>
+                        <select id="produtoSelect" class="form-control" required>
+                            <option value="">Carregando produtos...</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Campo de usuário removido - será definido automaticamente pelo sistema -->
+                    
+                    <div class="form-group">
+                        <label for="setor-origem-select">📍 Setor de Origem *</label>              <th>ID</th>
+                                <th>📦 Produto</th>
+                                <th>🔄 Tipo</th>
+                                <th>📍 De → Para</th>
+                                <th>📊 Quantidade</th>
+                                <th>📅 Data</th>
+                                <th> Usuário</th>
+                                <th>⚙️ Ações</th>
+                            </tr>
+                        </thead>-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#007aff">
     <meta name="description" content="Sistema de controle de movimentação de estoque - FasiClin">
@@ -96,67 +117,76 @@
 
     <!-- Modal de Adicionar/Editar Movimentação Apple-style -->
     <div id="movement-modal" class="modal-overlay hidden">
-        <div class="modal-content">
+        <div class="modal-content modal-wide">
             <div class="modal-header">
                 <h3 id="modal-title" class="title">✨ Nova Movimentação</h3>
                 <button id="close-modal" class="close-button">&times;</button>
             </div>
-            <form id="movement-form" class="modal-body">
-                <input type="hidden" id="movement-id">
-                
-                <div class="form-group">
-                    <label for="produtoSelect">📦 Selecionar Produto *</label>
-                    <select id="produtoSelect" class="form-control" required>
-                        <option value="">Carregando produtos...</option>
-                    </select>
+            <div class="modal-body modal-two-columns">
+                <!-- Painel de Estoque por Setor (Esquerda) -->
+                <div class="stock-panel">
+                    <h4>📊 Estoque por Setor</h4>
+                    <div id="stock-by-sector" class="stock-list">
+                        <div class="loading-stocks">Carregando estoques...</div>
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="usuario-select">👤 Usuário Responsável *</label>
-                    <select id="usuario-select" class="form-control" required>
-                        <option value="">Carregando usuários...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="setor-origem-select">📍 Setor de Origem *</label>
-                    <select id="setor-origem-select" class="form-control" required>
-                        <option value="">Carregando setores...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="setor-destino-select">🎯 Setor de Destino *</label>
-                    <select id="setor-destino-select" class="form-control" required>
-                        <option value="">Carregando setores...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="type">🔄 Tipo de Movimentação *</label>
-                    <select id="type" class="form-control" required>
-                        <option value="">Selecione o tipo...</option>
-                        <option value="ENTRADA">⬆️ Entrada</option>
-                        <option value="SAIDA">⬇️ Saída</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="amount">📊 Quantidade *</label>
-                    <input type="number" id="amount" min="1" class="form-control" required 
-                           placeholder="Digite a quantidade">
-                </div>
-                
-                <div class="form-group">
-                    <label for="date">📅 Data da Movimentação *</label>
-                    <input type="date" id="date" class="form-control" required>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" id="cancel-btn" class="btn">Cancelar</button>
-                    <button type="submit" id="save-btn" class="btn btn-primary">💾 Salvar</button>
-                </div>
-            </form>
+                <!-- Formulário de Movimentação (Direita) -->
+                <form id="movement-form" class="movement-form">
+                    <input type="hidden" id="movement-id">
+                    
+                    <div class="form-group">
+                        <label for="produtoSelect">📦 Selecionar Produto *</label>
+                        <select id="produtoSelect" class="form-control" required>
+                            <option value="">Carregando produtos...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="usuario-select">👤 Usuário Responsável *</label>
+                        <select id="usuario-select" class="form-control" required>
+                            <option value="">Carregando usuários...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="setor-origem-select">📍 Setor de Origem *</label>
+                        <select id="setor-origem-select" class="form-control" required>
+                            <option value="">Carregando setores...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="setor-destino-select">🎯 Setor de Destino *</label>
+                        <select id="setor-destino-select" class="form-control" required>
+                            <option value="">Carregando setores...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="type">🔄 Tipo de Movimentação *</label>
+                        <select id="type" class="form-control" required>
+                            <option value="">Selecione o tipo...</option>
+                            <option value="ENTRADA">⬆️ Entrada</option>
+                            <option value="SAIDA">⬇️ Saída</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="amount">📊 Quantidade *</label>
+                        <input type="number" id="amount" min="1" class="form-control" required 
+                               placeholder="Digite a quantidade">
+                    </div>
+                    
+                    <!-- Data automática (hoje) - não exibida -->
+                    <input type="hidden" id="date" class="form-control">
+                    
+                    <div class="modal-footer">
+                        <button type="button" id="cancel-btn" class="btn">Cancelar</button>
+                        <button type="submit" id="save-btn" class="btn btn-primary">💾 Salvar</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 

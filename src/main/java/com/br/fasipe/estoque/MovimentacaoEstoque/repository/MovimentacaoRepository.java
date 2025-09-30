@@ -16,6 +16,4 @@ public interface MovimentacaoRepository extends JpaRepository<Movimentacao, Inte
     List<Movimentacao> findByTipoMovimentacao(TipoMovimentacao tipoMovimentacao);
     List<Movimentacao> findByQuantidade(Integer quantidade);
     List<Movimentacao> findByDataMovimentacao(LocalDate dataMovimentacao);
-    
-    // Para consultas mais complexas, vamos usar streams no service
 }

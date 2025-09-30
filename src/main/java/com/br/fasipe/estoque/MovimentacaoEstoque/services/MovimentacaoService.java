@@ -19,6 +19,7 @@ import com.br.fasipe.estoque.MovimentacaoEstoque.dto.MovimentacaoEntreSetoresDTO
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,14 +44,25 @@ public class MovimentacaoService {
     private ProdutoRepository produtoRepository;
 
     public List<Movimentacao> findAll() {
+        System.out.println("MovimentacaoService.findAll() - Iniciando busca...");
         try {
             List<Movimentacao> movimentacoes = movimentacaoRepository.findAll();
             System.out.println("MovimentacaoService.findAll() - Encontradas " + movimentacoes.size() + " movimentações");
+            
+            // Ordenar por data decrescente (mais recentes primeiro)
+            movimentacoes.sort((m1, m2) -> {
+                if (m1.getDataMovimentacao() == null && m2.getDataMovimentacao() == null) return 0;
+                if (m1.getDataMovimentacao() == null) return 1;
+                if (m2.getDataMovimentacao() == null) return -1;
+                return m2.getDataMovimentacao().compareTo(m1.getDataMovimentacao());
+            });
+            
+            System.out.println("MovimentacaoService.findAll() - Ordenadas por data (mais recentes primeiro)");
             return movimentacoes;
         } catch (Exception e) {
             System.err.println("Erro no MovimentacaoService.findAll(): " + e.getMessage());
             e.printStackTrace();
-            throw e;
+            return new ArrayList<>(); // Retorna lista vazia em caso de erro
         }
     }
 
@@ -72,11 +84,24 @@ public class MovimentacaoService {
             movimentacao.setDataMovimentacao(LocalDate.now());
         }
         
-        // Validar se a data não é anterior à data atual
+        // Temporariamente removido até criar coluna HORAMOVIM no banco
+        /*
+        // Definir hora atual se não informada (opcional)
+        try {
+            if (movimentacao.getHoraMovimentacao() == null) {
+                movimentacao.setHoraMovimentacao(LocalTime.now());
+            }
+        } catch (Exception e) {
+            // Ignorar erro se coluna HORAMOVIM não existir ainda
+            log.warn("Coluna HORAMOVIM pode não existir no banco: {}", e.getMessage());
+        }
+        */
+        
+        // Validar se a data é exatamente hoje
         LocalDate dataAtual = LocalDate.now();
-        if (movimentacao.getDataMovimentacao().isBefore(dataAtual)) {
+        if (!movimentacao.getDataMovimentacao().equals(dataAtual)) {
             throw new IllegalArgumentException(
-                String.format("Data da movimentação não pode ser anterior à data atual. Data informada: %s, Data atual: %s", 
+                String.format("Movimentação só pode ser realizada na data atual. Data informada: %s, Data atual: %s", 
                     movimentacao.getDataMovimentacao(), dataAtual));
         }
         
@@ -101,15 +126,29 @@ public class MovimentacaoService {
      * - ENTRADA: incrementa a quantidade no estoque
      * - SAIDA: decrementa a quantidade no estoque
      * 
-     * Para movimentações entre setores, busca estoques de origem e destino
+     * Para movimentações entre setores, apenas registra a movimentação
+     * sem alterar estoque (simplificação para funcionar com modelo atual)
      */
     private void atualizarQuantidadesEstoque(Movimentacao movimentacao) {
         Estoque estoqueAtual = movimentacao.getEstoque();
         Integer quantidade = movimentacao.getQuantidade();
         TipoMovimentacao tipo = movimentacao.getTipoMovimentacao();
         
-        log.info("Atualizando estoque - ID: {}, Tipo: {}, Quantidade: {}, Estoque Atual: {}", 
+        log.info("Processando movimentação - ID: {}, Tipo: {}, Quantidade: {}, Estoque Atual: {}", 
                 estoqueAtual.getId(), tipo, quantidade, estoqueAtual.getQuantidadeEstoque());
+        
+        // Verificar se é movimentação entre setores (origem e destino diferentes)
+        boolean isMovimentacaoEntreSetores = movimentacao.getSetorOrigem() != null && 
+                                           movimentacao.getSetorDestino() != null &&
+                                           !movimentacao.getSetorOrigem().getId().equals(movimentacao.getSetorDestino().getId());
+        
+        if (isMovimentacaoEntreSetores) {
+            // Para movimentações entre setores, registramos apenas o histórico
+            // A lógica de controle por setor seria implementada em versão futura
+            log.info("Movimentação entre setores registrada - Origem: {} -> Destino: {}", 
+                    movimentacao.getSetorOrigem().getNome(), movimentacao.getSetorDestino().getNome());
+            return;
+        }
         
         if (tipo == TipoMovimentacao.ENTRADA) {
             // ENTRADA: Adiciona ao estoque

@@ -285,4 +285,38 @@ public class EstoqueService extends BaseService {
         // Implementar método específico no repository se necessário
         return estoqueRepository.count();
     }
+
+    /**
+     * Busca estoque agrupado por setor para exibição no painel de movimentação
+     * @return Lista de estoques organizados por setor
+     */
+    public List<Estoque> buscarEstoquePorSetor() {
+        try {
+            log.info("Buscando todos os estoques para agrupamento por setor");
+            
+            // Buscar todos os estoques
+            List<Estoque> estoques = estoqueRepository.findAll();
+            
+            // Forçar carregamento das relações lazy para evitar erros de serialização
+            estoques.forEach(estoque -> {
+                if (estoque.getProduto() != null) {
+                    estoque.getProduto().getNome(); // Força carregamento do produto
+                    // Verificar se o produto tem almoxarifado
+                    if (estoque.getProduto().getAlmoxarifado() != null) {
+                        estoque.getProduto().getAlmoxarifado().getNome();
+                    }
+                }
+                if (estoque.getLote() != null) {
+                    estoque.getLote().getId(); // Força carregamento do lote
+                }
+            });
+            
+            log.info("Encontrados {} registros de estoque", estoques.size());
+            return estoques;
+            
+        } catch (Exception e) {
+            log.error("Erro ao buscar estoque por setor: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro ao buscar estoque por setor", e);
+        }
+    }
 }

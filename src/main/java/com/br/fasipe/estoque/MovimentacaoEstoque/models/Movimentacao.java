@@ -51,6 +51,9 @@ public class Movimentacao implements java.io.Serializable {
     @Column(name = "DATAMOVIM", nullable = false)
     private LocalDate dataMovimentacao;
 
+    // Temporariamente removido até criar coluna no banco
+    // private LocalTime horaMovimentacao;
+
     @NotNull(message = "O estoque deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_ESTOQUE", nullable = false)

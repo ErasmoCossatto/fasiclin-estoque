@@ -230,4 +230,21 @@ public class EstoqueController {
         
         return ResponseEntity.ok(total);
     }
+
+    /**
+     * Lista estoques agrupados por setor (para painel de movimentação)
+     * Retorna informações de estoque organizadas por setor
+     */
+    @GetMapping("/por-setor")
+    public ResponseEntity<?> listarEstoquePorSetor() {
+        try {
+            log.info("Buscando estoque agrupado por setor");
+            var estoquePorSetor = estoqueService.buscarEstoquePorSetor();
+            return ResponseEntity.ok(estoquePorSetor);
+        } catch (Exception e) {
+            log.error("Erro ao buscar estoque por setor: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                .body("Erro ao buscar estoque por setor: " + e.getMessage());
+        }
+    }
 }
