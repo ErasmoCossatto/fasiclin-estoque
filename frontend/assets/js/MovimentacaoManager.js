@@ -231,25 +231,23 @@ class MovimentacaoManager {
      */
     getMockedEstoquePorSetor() {
         return [
-            // Setor Farmácia
-            { id: 1, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 150, setor: { nome: 'Farmácia' } },
-            { id: 2, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 200, setor: { nome: 'Farmácia' } },
-            { id: 3, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 80, setor: { nome: 'Farmácia' } },
+            // Setor Compras
+            { id: 1, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 500, setor: { nome: 'Compras' } },
+            { id: 2, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 300, setor: { nome: 'Compras' } },
+            { id: 3, produto: { nome: 'Material Cirúrgico' }, quantidadeEstoque: 50, setor: { nome: 'Compras' } },
+            { id: 4, produto: { nome: 'Seringas Descartáveis' }, quantidadeEstoque: 200, setor: { nome: 'Compras' } },
             
-            // Setor Enfermagem
-            { id: 4, produto: { nome: 'Seringa 10ml' }, quantidadeEstoque: 500, setor: { nome: 'Enfermagem' } },
-            { id: 5, produto: { nome: 'Luvas Descartáveis' }, quantidadeEstoque: 20, setor: { nome: 'Enfermagem' } },
-            { id: 6, produto: { nome: 'Gaze Estéril' }, quantidadeEstoque: 100, setor: { nome: 'Enfermagem' } },
+            // Setor Teste
+            { id: 5, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 80, setor: { nome: 'Teste' } },
+            { id: 6, produto: { nome: 'Luvas de Procedimento' }, quantidadeEstoque: 120, setor: { nome: 'Teste' } },
+            { id: 7, produto: { nome: 'Gaze Estéril' }, quantidadeEstoque: 60, setor: { nome: 'Teste' } },
+            { id: 8, produto: { nome: 'Álcool 70%' }, quantidadeEstoque: 40, setor: { nome: 'Teste' } },
             
-            // Setor Compras (NOVO)
-            { id: 7, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 500, setor: { nome: 'Compras' } },
-            { id: 8, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 300, setor: { nome: 'Compras' } },
-            { id: 9, produto: { nome: 'Material Cirúrgico' }, quantidadeEstoque: 50, setor: { nome: 'Compras' } },
-            
-            // Setor Estoque (NOVO)
-            { id: 10, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 400, setor: { nome: 'Estoque' } },
-            { id: 11, produto: { nome: 'Seringa 10ml' }, quantidadeEstoque: 1000, setor: { nome: 'Estoque' } },
-            { id: 12, produto: { nome: 'Equipamentos' }, quantidadeEstoque: 25, setor: { nome: 'Estoque' } }
+            // Setor Estoque
+            { id: 9, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 1000, setor: { nome: 'Estoque' } },
+            { id: 10, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 800, setor: { nome: 'Estoque' } },
+            { id: 11, produto: { nome: 'Equipamentos Médicos' }, quantidadeEstoque: 25, setor: { nome: 'Estoque' } },
+            { id: 12, produto: { nome: 'Material de Limpeza' }, quantidadeEstoque: 150, setor: { nome: 'Estoque' } }
         ];
     }
 
@@ -257,13 +255,13 @@ class MovimentacaoManager {
      * Popula select de estoques
      */
     populateEstoqueSelect() {
-        const select = document.getElementById('estoque-select');
+        const select = document.getElementById('produtoSelect');
         if (!select) {
-            console.error('[MovimentacaoManager] Select de estoque não encontrado');
+            console.error('[MovimentacaoManager] Select de produto não encontrado');
             return;
         }
 
-        console.log('[MovimentacaoManager] Populando select de estoques com', this.estoques.length, 'itens');
+        console.log('[MovimentacaoManager] Populando select de produtos com', this.estoques.length, 'itens');
         select.innerHTML = '<option value="">Selecione um produto...</option>';
         
         if (!this.estoques || this.estoques.length === 0) {
@@ -385,7 +383,6 @@ class MovimentacaoManager {
         return `
             <tr data-id="${movimentacao.id}">
                 <td>${movimentacao.id}</td>
-                <td>${movimentacao.nomeProduto || 'N/A'}</td>
                 <td>
                     <span class="type-badge ${tipoClass}">
                         ${tipoIcon} ${movimentacao.tipoMovimentacao}
@@ -394,7 +391,7 @@ class MovimentacaoManager {
                 <td class="flow-info">${fluxo}</td>
                 <td>${movimentacao.quantidade}</td>
                 <td>${this.formatDate(movimentacao.dataMovimentacao)}</td>
-                <td>${movimentacao.usuario?.login || 'N/A'}</td>
+                <td>${movimentacao.usuario?.nome || movimentacao.usuario?.login || movimentacao.nomeUsuario || 'N/A'}</td>
                 <td class="action-buttons">
                     <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})" title="Editar">
                         ✏️
@@ -428,10 +425,6 @@ class MovimentacaoManager {
                 </div>
                 <div class="mobile-card-body">
                     <div class="mobile-card-row">
-                        <span class="mobile-card-label">Produto:</span>
-                        <span class="mobile-card-value">${movimentacao.nomeProduto || 'N/A'}</span>
-                    </div>
-                    <div class="mobile-card-row">
                         <span class="mobile-card-label">De → Para:</span>
                         <span class="mobile-card-value">${origem} → ${destino}</span>
                     </div>
@@ -445,7 +438,7 @@ class MovimentacaoManager {
                     </div>
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Usuário:</span>
-                        <span class="mobile-card-value">${movimentacao.usuario?.login || 'N/A'}</span>
+                        <span class="mobile-card-value">${movimentacao.usuario?.nome || movimentacao.usuario?.login || movimentacao.nomeUsuario || 'N/A'}</span>
                     </div>
                 </div>
                 <div class="mobile-card-actions">
@@ -1205,19 +1198,12 @@ class MovimentacaoManager {
             grouped[setor].push(estoque);
         });
         
-        // Garantir que os setores apareçam numa ordem lógica
+        // Garantir que os setores apareçam numa ordem lógica (apenas Compras, Teste e Estoque)
         const sortedGrouped = {};
-        const ordem = ['Estoque', 'Compras', 'Farmácia', 'Enfermagem'];
+        const ordem = ['Compras', 'Teste', 'Estoque'];
         
         ordem.forEach(setorNome => {
             if (grouped[setorNome]) {
-                sortedGrouped[setorNome] = grouped[setorNome];
-            }
-        });
-        
-        // Adicionar outros setores que não estão na ordem
-        Object.keys(grouped).forEach(setorNome => {
-            if (!ordem.includes(setorNome)) {
                 sortedGrouped[setorNome] = grouped[setorNome];
             }
         });

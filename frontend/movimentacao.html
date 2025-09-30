@@ -2,28 +2,7 @@
 <html lang="pt-BR">
 
 <head>
-    <meta                         <thead>
-                            <tr>
-                      <div class="form-group">
-                        <label for="produtoSelect">🏷️ Produto *</label>
-                        <select id="produtoSelect" class="form-control" required>
-                            <option value="">Carregando produtos...</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Campo de usuário removido - será definido automaticamente pelo sistema -->
-                    
-                    <div class="form-group">
-                        <label for="setor-origem-select">📍 Setor de Origem *</label>              <th>ID</th>
-                                <th>📦 Produto</th>
-                                <th>🔄 Tipo</th>
-                                <th>📍 De → Para</th>
-                                <th>📊 Quantidade</th>
-                                <th>📅 Data</th>
-                                <th> Usuário</th>
-                                <th>⚙️ Ações</th>
-                            </tr>
-                        </thead>-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#007aff">
     <meta name="description" content="Sistema de controle de movimentação de estoque - FasiClin">
@@ -80,10 +59,9 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>📦 Produto</th>
                                 <th>🔄 Tipo</th>
-                                <th>� De → Para</th>
-                                <th>�📊 Quantidade</th>
+                                <th>📍 De → Para</th>
+                                <th>📊 Quantidade</th>
                                 <th>📅 Data</th>
                                 <th>👤 Usuário</th>
                                 <th>⚙️ Ações</th>
@@ -136,18 +114,13 @@
                     <input type="hidden" id="movement-id">
                     
                     <div class="form-group">
-                        <label for="produtoSelect">📦 Selecionar Produto *</label>
+                        <label for="produtoSelect">🏷️ Produto *</label>
                         <select id="produtoSelect" class="form-control" required>
-                            <option value="">Carregando produtos...</option>
+                            <option value="">Selecione um produto...</option>
                         </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="usuario-select">👤 Usuário Responsável *</label>
-                        <select id="usuario-select" class="form-control" required>
-                            <option value="">Carregando usuários...</option>
-                        </select>
-                    </div>
+                    <!-- Campo de usuário removido - será definido automaticamente pelo sistema -->
                     
                     <div class="form-group">
                         <label for="setor-origem-select">📍 Setor de Origem *</label>
