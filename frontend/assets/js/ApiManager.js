@@ -678,12 +678,9 @@ class ApiManager {
      */
     getMockedSetores() {
         return [
-            { id: 1, nome: 'Farmácia Central', ativo: true },
-            { id: 2, nome: 'UTI - Unidade de Terapia Intensiva', ativo: true },
-            { id: 3, nome: 'Enfermaria Geral', ativo: true },
-            { id: 4, nome: 'Centro Cirúrgico', ativo: true },
-            { id: 5, nome: 'Pronto Socorro', ativo: true },
-            { id: 6, nome: 'Almoxarifado Central', ativo: true }
+            { id: 1, nome: 'Compras', ativo: true },
+            { id: 2, nome: 'Teste', ativo: true },
+            { id: 3, nome: 'Estoque', ativo: true }
         ];
     }
 

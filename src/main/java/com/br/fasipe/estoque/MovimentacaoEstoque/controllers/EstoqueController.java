@@ -247,4 +247,21 @@ public class EstoqueController {
                 .body("Erro ao buscar estoque por setor: " + e.getMessage());
         }
     }
+
+    /**
+     * Lista produtos com almoxarifado e suas quantidades em estoque (para barra lateral)
+     * Retorna apenas produtos que têm almoxarifado associado (ID_ALMOX NOT NULL)
+     */
+    @GetMapping("/produtos-com-almoxarifado")
+    public ResponseEntity<?> listarProdutosComAlmoxarifado() {
+        try {
+            log.info("Buscando produtos com almoxarifado para barra lateral");
+            var produtosComEstoque = estoqueService.buscarProdutosComAlmoxarifado();
+            return ResponseEntity.ok(produtosComEstoque);
+        } catch (Exception e) {
+            log.error("Erro ao buscar produtos com almoxarifado: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                .body("Erro ao buscar produtos com almoxarifado: " + e.getMessage());
+        }
+    }
 }

@@ -1,0 +1,48 @@
+-- Script completo para resolver problema de ID_USUARIO NULL
+-- Execute linha por linha para verificar o resultado
+
+-- 1. Verificar a estrutura atual
+SELECT 'ESTRUTURA ATUAL DA TABELA:' as INFO;
+DESCRIBE MOVIMENTACAO;
+
+-- 2. Verificar constraints de foreign key
+SELECT 'CONSTRAINTS DE FOREIGN KEY:' as INFO;
+SELECT 
+    CONSTRAINT_NAME,
+    COLUMN_NAME,
+    REFERENCED_TABLE_NAME,
+    REFERENCED_COLUMN_NAME
+FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+WHERE TABLE_NAME = 'MOVIMENTACAO' 
+AND REFERENCED_TABLE_NAME IS NOT NULL;
+
+-- 3. Remover constraint de foreign key se existir (temporariamente)
+-- Primeiro descobrir o nome da constraint
+SET @sql = NULL;
+SELECT CONCAT('ALTER TABLE MOVIMENTACAO DROP FOREIGN KEY ', CONSTRAINT_NAME, ';')
+INTO @sql
+FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+WHERE TABLE_NAME = 'MOVIMENTACAO' 
+AND COLUMN_NAME = 'ID_USUARIO'
+AND REFERENCED_TABLE_NAME IS NOT NULL
+LIMIT 1;
+
+-- Se encontrou constraint, execute (descomente as linhas abaixo):
+-- PREPARE stmt FROM @sql;
+-- EXECUTE stmt;
+-- DEALLOCATE PREPARE stmt;
+
+-- 4. Alterar coluna para aceitar NULL
+ALTER TABLE MOVIMENTACAO 
+MODIFY COLUMN ID_USUARIO INT NULL;
+
+-- 5. Recriar foreign key como opcional (se necessário)
+-- ALTER TABLE MOVIMENTACAO 
+-- ADD CONSTRAINT FK_MOVIMENTACAO_USUARIO 
+-- FOREIGN KEY (ID_USUARIO) REFERENCES USUARIO(IDUSUARIO);
+
+-- 6. Verificar resultado final
+SELECT 'ESTRUTURA APÓS ALTERAÇÃO:' as INFO;
+DESCRIBE MOVIMENTACAO;
+
+SELECT 'COLUNA ID_USUARIO AGORA ACEITA NULL!' as STATUS;

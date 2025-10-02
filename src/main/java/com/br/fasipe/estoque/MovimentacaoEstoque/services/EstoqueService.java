@@ -319,4 +319,63 @@ public class EstoqueService extends BaseService {
             throw new RuntimeException("Erro ao buscar estoque por setor", e);
         }
     }
+
+    /**
+     * Busca produtos que têm almoxarifado associado e suas quantidades em estoque
+     * Para exibição na barra lateral - apenas produtos com ID_ALMOX NOT NULL
+     * @return Lista de mapas com informações dos produtos e suas quantidades
+     */
+    public List<java.util.Map<String, Object>> buscarProdutosComAlmoxarifado() {
+        try {
+            log.info("Buscando produtos com almoxarifado para barra lateral");
+            
+            // Buscar todos os estoques onde o produto tem almoxarifado
+            List<Estoque> estoques = estoqueRepository.findAll();
+            List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
+            
+            // Agrupar por setor (baseado no almoxarifado do produto)
+            java.util.Map<String, List<java.util.Map<String, Object>>> estoquePorSetor = new java.util.LinkedHashMap<>();
+            
+            for (Estoque estoque : estoques) {
+                if (estoque.getProduto() != null && estoque.getProduto().getAlmoxarifado() != null) {
+                    // Produto tem almoxarifado, pode aparecer na barra lateral
+                    
+                    String nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
+                    
+                    java.util.Map<String, Object> itemEstoque = new java.util.HashMap<>();
+                    itemEstoque.put("id", estoque.getId());
+                    itemEstoque.put("produto", java.util.Map.of(
+                        "id", estoque.getProduto().getId(),
+                        "nome", estoque.getProduto().getNome(),
+                        "descricao", estoque.getProduto().getDescricao()
+                    ));
+                    itemEstoque.put("quantidadeEstoque", estoque.getQuantidadeEstoque());
+                    itemEstoque.put("setor", java.util.Map.of(
+                        "id", estoque.getProduto().getAlmoxarifado().getId(),
+                        "nome", nomeSetor
+                    ));
+                    
+                    // Adicionar ao grupo do setor
+                    if (!estoquePorSetor.containsKey(nomeSetor)) {
+                        estoquePorSetor.put(nomeSetor, new java.util.ArrayList<>());
+                    }
+                    estoquePorSetor.get(nomeSetor).add(itemEstoque);
+                }
+            }
+            
+            // Converter para lista plana mantendo agrupamento
+            for (java.util.Map.Entry<String, List<java.util.Map<String, Object>>> entry : estoquePorSetor.entrySet()) {
+                resultado.addAll(entry.getValue());
+            }
+            
+            log.info("Encontrados {} produtos com almoxarifado agrupados por {} setores", 
+                    resultado.size(), estoquePorSetor.size());
+            
+            return resultado;
+            
+        } catch (Exception e) {
+            log.error("Erro ao buscar produtos com almoxarifado: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro ao buscar produtos com almoxarifado", e);
+        }
+    }
 }

@@ -21,6 +21,7 @@ import lombok.Data;
 import lombok.ToString;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "MOVIMENTACAO")
@@ -51,8 +52,8 @@ public class Movimentacao implements java.io.Serializable {
     @Column(name = "DATAMOVIM", nullable = false)
     private LocalDate dataMovimentacao;
 
-    // Temporariamente removido até criar coluna no banco
-    // private LocalTime horaMovimentacao;
+    @Column(name = "HORARIO")
+    private LocalTime horaMovimentacao;
 
     @NotNull(message = "O estoque deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
@@ -60,6 +61,8 @@ public class Movimentacao implements java.io.Serializable {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Estoque estoque;
 
+    // TODO: Usar variável global quando implementada
+    // TEMPORÁRIO: Usa primeiro usuário do banco automaticamente para testes
     @NotNull(message = "O usuário deve ser informado")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_USUARIO", nullable = false)

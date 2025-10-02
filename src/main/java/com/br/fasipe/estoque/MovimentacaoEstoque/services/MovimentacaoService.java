@@ -19,6 +19,7 @@ import com.br.fasipe.estoque.MovimentacaoEstoque.dto.MovimentacaoEntreSetoresDTO
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -89,18 +90,11 @@ public class MovimentacaoService {
                 log.info("Data de movimentação definida automaticamente: {}", movimentacao.getDataMovimentacao());
             }
             
-            // Temporariamente removido até criar coluna HORAMOVIM no banco
-            /*
-            // Definir hora atual se não informada (opcional)
-            try {
-                if (movimentacao.getHoraMovimentacao() == null) {
-                    movimentacao.setHoraMovimentacao(LocalTime.now());
-                }
-            } catch (Exception e) {
-                // Ignorar erro se coluna HORAMOVIM não existir ainda
-                log.warn("Coluna HORAMOVIM pode não existir no banco: {}", e.getMessage());
+            // Definir hora atual se não informada
+            if (movimentacao.getHoraMovimentacao() == null) {
+                movimentacao.setHoraMovimentacao(LocalTime.now());
+                log.info("Hora de movimentação definida automaticamente: {}", movimentacao.getHoraMovimentacao());
             }
-            */
             
             // Validar se a data é exatamente hoje
             LocalDate dataAtual = LocalDate.now();
@@ -210,19 +204,27 @@ public class MovimentacaoService {
             Setor setorDestino = buscarSetor(dto.getIdSetorDestino());
             Usuario usuario = buscarUsuario(dto.getIdUsuario()); // Pode retornar null
             
-            // 3. Verificar e obter estoque de origem
+            // 3. Verificar se o produto pode ser movimentado (tem almoxarifado)
+            if (produto.getAlmoxarifado() == null) {
+                throw new IllegalStateException("Produto não pode ser movimentado pois não possui almoxarifado associado");
+            }
+            
+            // 4. Verificar e obter estoque de origem
             Estoque estoqueOrigem = buscarEstoqueNoSetor(produto, setorOrigem);
             
-            // 4. Validar se há quantidade suficiente
+            // 5. Validar se há quantidade suficiente (impedir movimentação se estoque zerado)
+            if (estoqueOrigem.getQuantidadeEstoque() <= 0) {
+                throw new IllegalStateException("Não é possível movimentar produto com estoque zerado no setor de origem");
+            }
             validarQuantidadeDisponivel(estoqueOrigem, dto.getQuantidade());
             
-            // 5. Buscar ou criar estoque de destino
+            // 6. Buscar ou criar estoque de destino
             Estoque estoqueDestino = buscarOuCriarEstoqueNoSetor(produto, setorDestino);
             
-            // 6. Executar a movimentação (atômica)
+            // 7. Executar a movimentação (atômica) - diminui origem e aumenta destino
             executarMovimentacaoAtômica(estoqueOrigem, estoqueDestino, dto.getQuantidade());
             
-            // 7. Registrar a movimentação
+            // 8. Registrar a movimentação
             Movimentacao movimentacao = criarRegistroMovimentacao(
                 produto, setorOrigem, setorDestino, usuario, dto.getQuantidade(), estoqueOrigem);
             
@@ -292,7 +294,7 @@ public class MovimentacaoService {
     private void validarQuantidadeDisponivel(Estoque estoque, Integer quantidadeRequerida) {
         if (estoque.getQuantidadeEstoque() < quantidadeRequerida) {
             throw new IllegalStateException(String.format(
-                "Estoque insuficiente. Disponível: %d, Requerido: %d", 
+                "Estoque insuficiente. Disponível: %d, Requerido: %d. Não é possível realizar movimentação quando o estoque está zerado ou insuficiente.", 
                 estoque.getQuantidadeEstoque(), quantidadeRequerida));
         }
     }
@@ -335,6 +337,7 @@ public class MovimentacaoService {
         movimentacao.setTipoMovimentacao(TipoMovimentacao.SAIDA); // Saída do setor origem
         movimentacao.setQuantidade(quantidade);
         movimentacao.setDataMovimentacao(LocalDate.now());
+        movimentacao.setHoraMovimentacao(LocalTime.now()); // Definir hora atual
         movimentacao.setEstoque(estoque);
         movimentacao.setUsuario(usuario);
         movimentacao.setSetorOrigem(setorOrigem);
@@ -387,20 +390,38 @@ public class MovimentacaoService {
         movimentacao.setEstoque(estoque.get());
         log.info("Estoque validado com sucesso: ID {}", estoque.get().getId());
         
-        // Validar usuário (OPCIONAL - para testes)
-        if (movimentacao.getUsuario() != null && movimentacao.getUsuario().getId() != null) {
-            log.info("Validando usuário com ID: {}", movimentacao.getUsuario().getId());
-            Optional<Usuario> usuario = usuarioRepository.findById(movimentacao.getUsuario().getId());
-            if (usuario.isEmpty()) {
-                log.warn("Usuário com ID {} não encontrado, prosseguindo sem usuário para testes", movimentacao.getUsuario().getId());
-                movimentacao.setUsuario(null);
+        // SOLUÇÃO PRÁTICA: Usar primeiro usuário disponível no banco para testes
+        // Quando não há usuário informado, busca o primeiro usuário existente
+        if (movimentacao.getUsuario() == null || movimentacao.getUsuario().getId() == null) {
+            log.info("Usuário não informado, buscando primeiro usuário disponível no banco...");
+            List<Usuario> usuarios = usuarioRepository.findAll();
+            if (!usuarios.isEmpty()) {
+                Usuario usuarioPadrao = usuarios.get(0);
+                movimentacao.setUsuario(usuarioPadrao);
+                log.info("Usando usuário padrão para testes: ID {} - Login: {}", 
+                        usuarioPadrao.getId(), usuarioPadrao.getLogin());
             } else {
-                movimentacao.setUsuario(usuario.get());
-                log.info("Usuário validado com sucesso: ID {}", usuario.get().getId());
+                log.error("Nenhum usuário encontrado no banco de dados!");
+                throw new IllegalStateException("É necessário ter pelo menos um usuário cadastrado no banco");
             }
         } else {
-            log.info("Movimentação sendo realizada sem usuário (modo teste)");
-            movimentacao.setUsuario(null);
+            log.info("Validando usuário informado com ID: {}", movimentacao.getUsuario().getId());
+            Optional<Usuario> usuario = usuarioRepository.findById(movimentacao.getUsuario().getId());
+            if (usuario.isPresent()) {
+                movimentacao.setUsuario(usuario.get());
+                log.info("Usuário validado com sucesso: ID {}", usuario.get().getId());
+            } else {
+                log.warn("Usuário com ID {} não encontrado, buscando usuário padrão", movimentacao.getUsuario().getId());
+                List<Usuario> usuarios = usuarioRepository.findAll();
+                if (!usuarios.isEmpty()) {
+                    Usuario usuarioPadrao = usuarios.get(0);
+                    movimentacao.setUsuario(usuarioPadrao);
+                    log.info("Usando usuário padrão: ID {} - Login: {}", 
+                            usuarioPadrao.getId(), usuarioPadrao.getLogin());
+                } else {
+                    throw new IllegalStateException("Nenhum usuário encontrado no banco de dados!");
+                }
+            }
         }
         
         // Validar setor origem
@@ -484,6 +505,9 @@ public class MovimentacaoService {
         }
         if (movimentacao.getDataMovimentacao() != null) {
             entity.setDataMovimentacao(movimentacao.getDataMovimentacao());
+        }
+        if (movimentacao.getHoraMovimentacao() != null) {
+            entity.setHoraMovimentacao(movimentacao.getHoraMovimentacao());
         }
         
         // Atualizar relacionamentos se fornecidos

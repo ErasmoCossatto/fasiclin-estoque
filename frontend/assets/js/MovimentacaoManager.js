@@ -214,41 +214,53 @@ class MovimentacaoManager {
         try {
             console.log('[MovimentacaoManager] Carregando estoque por setor...');
             
-            // Como não temos o endpoint /estoque/por-setor implementado,
-            // vamos usar dados mockados que representam estoque por setor
-            this.estoquePorSetor = this.getMockedEstoquePorSetor();
+            // Usar o novo endpoint que retorna apenas produtos com almoxarifado
+            const response = await this.apiManager.request('/estoque/produtos-com-almoxarifado');
             
-            console.log(`[MovimentacaoManager] ✅ ${this.estoquePorSetor.length} registros de estoque carregados (mockado)`);
+            if (response.success && response.data) {
+                this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
+                console.log(`[MovimentacaoManager] ✅ ${this.estoquePorSetor.length} produtos com almoxarifado carregados`);
+            } else {
+                console.warn('[MovimentacaoManager] Nenhum produto com almoxarifado encontrado, usando dados mockados');
+                this.estoquePorSetor = this.getMockedEstoquePorSetorComAlmoxarifado();
+            }
             
         } catch (error) {
             console.error('[MovimentacaoManager] Erro ao carregar estoque por setor:', error);
-            this.estoquePorSetor = this.getMockedEstoquePorSetor();
+            this.estoquePorSetor = this.getMockedEstoquePorSetorComAlmoxarifado();
         }
     }
 
     /**
-     * Retorna dados mockados de estoque por setor
+     * Retorna dados mockados de estoque por setor - apenas produtos COM almoxarifado
+     */
+    getMockedEstoquePorSetorComAlmoxarifado() {
+        return [
+            // Setor Compras - produtos COM almoxarifado
+            { id: 1, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico' }, quantidadeEstoque: 500, setor: { id: 1, nome: 'Compras' } },
+            { id: 2, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 300, setor: { id: 1, nome: 'Compras' } },
+            { id: 3, produto: { id: 3, nome: 'Material Cirúrgico', descricao: 'Instrumentos cirúrgicos' }, quantidadeEstoque: 50, setor: { id: 1, nome: 'Compras' } },
+            { id: 4, produto: { id: 4, nome: 'Seringas Descartáveis', descricao: 'Seringas para injeção' }, quantidadeEstoque: 200, setor: { id: 1, nome: 'Compras' } },
+            
+            // Setor Teste - produtos COM almoxarifado
+            { id: 5, produto: { id: 5, nome: 'Ibuprofeno 600mg', descricao: 'Anti-inflamatório' }, quantidadeEstoque: 80, setor: { id: 2, nome: 'Teste' } },
+            { id: 6, produto: { id: 6, nome: 'Luvas de Procedimento', descricao: 'Luvas descartáveis' }, quantidadeEstoque: 120, setor: { id: 2, nome: 'Teste' } },
+            { id: 7, produto: { id: 7, nome: 'Gaze Estéril', descricao: 'Gaze para curativos' }, quantidadeEstoque: 60, setor: { id: 2, nome: 'Teste' } },
+            { id: 8, produto: { id: 8, nome: 'Álcool 70%', descricao: 'Desinfetante' }, quantidadeEstoque: 40, setor: { id: 2, nome: 'Teste' } },
+            
+            // Setor Estoque - produtos COM almoxarifado
+            { id: 9, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico' }, quantidadeEstoque: 1000, setor: { id: 3, nome: 'Estoque' } },
+            { id: 10, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 800, setor: { id: 3, nome: 'Estoque' } },
+            { id: 11, produto: { id: 9, nome: 'Equipamentos Médicos', descricao: 'Equipamentos diversos' }, quantidadeEstoque: 25, setor: { id: 3, nome: 'Estoque' } },
+            { id: 12, produto: { id: 10, nome: 'Material de Limpeza', descricao: 'Produtos de limpeza hospitalar' }, quantidadeEstoque: 150, setor: { id: 3, nome: 'Estoque' } }
+        ];
+    }
+
+    /**
+     * Retorna dados mockados de estoque por setor (método antigo - manter para compatibilidade)
      */
     getMockedEstoquePorSetor() {
-        return [
-            // Setor Compras
-            { id: 1, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 500, setor: { nome: 'Compras' } },
-            { id: 2, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 300, setor: { nome: 'Compras' } },
-            { id: 3, produto: { nome: 'Material Cirúrgico' }, quantidadeEstoque: 50, setor: { nome: 'Compras' } },
-            { id: 4, produto: { nome: 'Seringas Descartáveis' }, quantidadeEstoque: 200, setor: { nome: 'Compras' } },
-            
-            // Setor Teste
-            { id: 5, produto: { nome: 'Ibuprofeno 600mg' }, quantidadeEstoque: 80, setor: { nome: 'Teste' } },
-            { id: 6, produto: { nome: 'Luvas de Procedimento' }, quantidadeEstoque: 120, setor: { nome: 'Teste' } },
-            { id: 7, produto: { nome: 'Gaze Estéril' }, quantidadeEstoque: 60, setor: { nome: 'Teste' } },
-            { id: 8, produto: { nome: 'Álcool 70%' }, quantidadeEstoque: 40, setor: { nome: 'Teste' } },
-            
-            // Setor Estoque
-            { id: 9, produto: { nome: 'Dipirona 500mg' }, quantidadeEstoque: 1000, setor: { nome: 'Estoque' } },
-            { id: 10, produto: { nome: 'Paracetamol 750mg' }, quantidadeEstoque: 800, setor: { nome: 'Estoque' } },
-            { id: 11, produto: { nome: 'Equipamentos Médicos' }, quantidadeEstoque: 25, setor: { nome: 'Estoque' } },
-            { id: 12, produto: { nome: 'Material de Limpeza' }, quantidadeEstoque: 150, setor: { nome: 'Estoque' } }
-        ];
+        return this.getMockedEstoquePorSetorComAlmoxarifado();
     }
 
     /**
@@ -390,7 +402,7 @@ class MovimentacaoManager {
                 </td>
                 <td class="flow-info">${fluxo}</td>
                 <td>${movimentacao.quantidade}</td>
-                <td>${this.formatDate(movimentacao.dataMovimentacao)}</td>
+                <td>${this.formatDateTime(movimentacao.dataMovimentacao, movimentacao.horaMovimentacao)}</td>
                 <td>${movimentacao.usuario?.nome || movimentacao.usuario?.login || movimentacao.nomeUsuario || 'N/A'}</td>
                 <td class="action-buttons">
                     <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})" title="Editar">
@@ -433,8 +445,8 @@ class MovimentacaoManager {
                         <span class="mobile-card-value">${movimentacao.quantidade}</span>
                     </div>
                     <div class="mobile-card-row">
-                        <span class="mobile-card-label">Data:</span>
-                        <span class="mobile-card-value">${this.formatDate(movimentacao.dataMovimentacao)}</span>
+                        <span class="mobile-card-label">Data/Hora:</span>
+                        <span class="mobile-card-value">${this.formatDateTime(movimentacao.dataMovimentacao, movimentacao.horaMovimentacao)}</span>
                     </div>
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Usuário:</span>
@@ -626,8 +638,8 @@ class MovimentacaoManager {
                 await this.loadMovimentacoes();
                 this.renderMovimentacoes();
                 
-                // Atualizar painel de estoque após movimentação
-                await this.atualizarPainelEstoque();
+                // Atualizar painel de estoque após movimentação para mostrar quantidades atualizadas
+                await this.atualizarPainelEstoqueEmTempoReal();
             } else {
                 console.error('[MovimentacaoManager] Erro na resposta da API:', response);
                 this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
@@ -646,14 +658,14 @@ class MovimentacaoManager {
      */
     getFormData() {
         const estoqueId = parseInt(document.getElementById('produtoSelect').value);
-        // Usuário será fornecido por variável global no futuro - por enquanto null para testes
-        const usuarioId = null; // Removido temporariamente para testes
+        // TODO: Usar variável global do usuário quando implementada
+        // Por enquanto, não enviamos usuário (será null no backend temporariamente)
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
         
         console.log('[MovimentacaoManager] Coletando dados do formulário:', {
             estoqueId,
-            usuarioId: 'null (modo teste - virá de variável global)',
+            usuario: 'null (aguardando implementação de variável global)',
             setorOrigemId,
             setorDestinoId
         });
@@ -661,7 +673,7 @@ class MovimentacaoManager {
         return {
             // O backend espera objetos, não apenas IDs - usando estoque corretamente
             estoque: estoqueId ? { id: estoqueId } : null,
-            usuario: usuarioId ? { id: usuarioId } : null, // Pode ser null para testes
+            usuario: null, // Será null até implementar variável global de usuário
             setorOrigem: setorOrigemId ? { id: setorOrigemId } : null,
             setorDestino: setorDestinoId ? { id: setorDestinoId } : null,
             tipoMovimentacao: document.getElementById('type').value,
@@ -677,8 +689,7 @@ class MovimentacaoManager {
         const errors = [];
 
         if (!data.estoque || !data.estoque.id) errors.push('Selecione um produto');
-        // Usuário não é mais obrigatório para testes
-        // if (!data.usuario || !data.usuario.id) errors.push('Selecione um usuário');
+        // Usuario será null até implementar variável global - não validar por enquanto
         if (!data.setorOrigem || !data.setorOrigem.id) errors.push('Selecione o setor de origem');
         if (!data.setorDestino || !data.setorDestino.id) errors.push('Selecione o setor de destino');
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
@@ -706,7 +717,7 @@ class MovimentacaoManager {
             }
         }
 
-        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso (sem usuário para testes):', data);
+        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso (sem usuário - aguardando variável global):', data);
         return true;
     }
 
@@ -849,10 +860,9 @@ class MovimentacaoManager {
 
     getMockedSetores() {
         return [
-            { id: 1, nome: 'Almoxarifado Central' },
-            { id: 2, nome: 'Farmácia' },
-            { id: 3, nome: 'UTI' },
-            { id: 4, nome: 'Enfermaria' }
+            { id: 1, nome: 'Compras' },
+            { id: 2, nome: 'Teste' },
+            { id: 3, nome: 'Estoque' }
         ];
     }
 
@@ -1133,11 +1143,36 @@ class MovimentacaoManager {
     }
 
     /**
-     * Atualiza o painel de estoque após uma movimentação
+     * Atualiza o painel de estoque após uma movimentação (método original)
      */
     async atualizarPainelEstoque() {
         await this.loadEstoquePorSetor();
         this.renderStockPanel();
+    }
+
+    /**
+     * Atualiza o painel de estoque em tempo real após uma movimentação
+     * Recarrega os dados e atualiza a exibição na barra lateral
+     */
+    async atualizarPainelEstoqueEmTempoReal() {
+        try {
+            console.log('[ATUALIZAÇÃO] Atualizando painel de estoque em tempo real...');
+            
+            // Recarregar dados do estoque por setor
+            await this.loadEstoquePorSetor();
+            
+            // Re-renderizar o painel
+            this.renderStockPanel();
+            
+            console.log('[ATUALIZAÇÃO] ✅ Painel de estoque atualizado com sucesso');
+            
+            // Mostrar notificação discreta sobre a atualização
+            this.showNotification('📊 Quantidades atualizadas na barra lateral', 'info', 2000);
+            
+        } catch (error) {
+            console.error('[ATUALIZAÇÃO] ❌ Erro ao atualizar painel:', error);
+            this.showNotification('⚠️ Erro ao atualizar quantidades', 'warning', 3000);
+        }
     }
 
     /**
@@ -1184,9 +1219,10 @@ class MovimentacaoManager {
         estoques.forEach(estoque => {
             let setor = 'Sem Setor';
             
+            // Usar o nome do setor do objeto setor (novo formato)
             if (estoque.setor && estoque.setor.nome) {
                 setor = estoque.setor.nome;
-            } else if (estoque.produto && estoque.produto.almoxarifado) {
+            } else if (estoque.produto && estoque.produto.almoxarifado && estoque.produto.almoxarifado.nome) {
                 setor = estoque.produto.almoxarifado.nome;
             } else if (estoque.produto && estoque.produto.idAlmoxarifado) {
                 setor = `Almoxarifado ${estoque.produto.idAlmoxarifado}`;
@@ -1199,12 +1235,20 @@ class MovimentacaoManager {
             grouped[setor].push(estoque);
         });
         
-        // Garantir que os setores apareçam numa ordem lógica (apenas Compras, Teste e Estoque)
+        // Garantir que os setores apareçam numa ordem lógica (apenas os que realmente existem)
         const sortedGrouped = {};
-        const ordem = ['Compras', 'Teste', 'Estoque'];
+        const ordemPreferida = ['Compras', 'Teste', 'Estoque'];
         
-        ordem.forEach(setorNome => {
+        // Primeiro adiciona os setores na ordem preferida se existirem
+        ordemPreferida.forEach(setorNome => {
             if (grouped[setorNome]) {
+                sortedGrouped[setorNome] = grouped[setorNome];
+            }
+        });
+        
+        // Depois adiciona os outros setores não incluídos na ordem preferida
+        Object.keys(grouped).forEach(setorNome => {
+            if (!ordemPreferida.includes(setorNome)) {
                 sortedGrouped[setorNome] = grouped[setorNome];
             }
         });
@@ -1221,9 +1265,11 @@ class MovimentacaoManager {
         const quantidade = estoque.quantidadeEstoque || 0;
         const quantityClass = quantidade <= 10 ? 'low-stock' : quantidade <= 50 ? 'medium-stock' : 'good-stock';
         
-        // Buscar nome do almoxarifado
+        // Buscar nome do setor/almoxarifado
         let almoxarifado = 'Sem Setor';
-        if (produto.almoxarifado) {
+        if (estoque.setor && estoque.setor.nome) {
+            almoxarifado = estoque.setor.nome;
+        } else if (produto.almoxarifado && produto.almoxarifado.nome) {
             almoxarifado = produto.almoxarifado.nome;
         } else if (produto.idAlmoxarifado) {
             almoxarifado = `Setor ${produto.idAlmoxarifado}`;
@@ -1236,6 +1282,7 @@ class MovimentacaoManager {
                     <span class="stock-item-quantity ${quantityClass}">${quantidade}</span>
                 </div>
                 <div class="stock-item-sector">${almoxarifado}</div>
+                ${produto.descricao ? `<div class="stock-item-description">${produto.descricao}</div>` : ''}
             </div>
         `;
     }
@@ -1246,7 +1293,7 @@ class MovimentacaoManager {
     }
 
     formatTime(timeString) {
-        if (!timeString) return 'N/A';
+        if (!timeString) return '--:--';
         
         // Se já está no formato HH:mm:ss, extrair apenas HH:mm
         if (typeof timeString === 'string' && timeString.includes(':')) {
@@ -1260,7 +1307,31 @@ class MovimentacaoManager {
             return `${hours}:${minutes}`;
         }
         
-        return 'N/A';
+        // Se é um objeto LocalTime do Jackson
+        if (typeof timeString === 'object' && timeString !== null) {
+            if (timeString.hour !== undefined && timeString.minute !== undefined) {
+                const hours = timeString.hour.toString().padStart(2, '0');
+                const minutes = timeString.minute.toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
+            }
+        }
+        
+        return '--:--';
+    }
+
+    formatDateTime(dateString, timeString) {
+        const formattedDate = this.formatDate(dateString);
+        const formattedTime = this.formatTime(timeString);
+        
+        if (formattedDate === 'N/A') {
+            return 'N/A';
+        }
+        
+        if (formattedTime === '--:--') {
+            return `${formattedDate} --:--`;
+        }
+        
+        return `${formattedDate} ${formattedTime}`;
     }
 
     getTipoIcon(tipo) {
