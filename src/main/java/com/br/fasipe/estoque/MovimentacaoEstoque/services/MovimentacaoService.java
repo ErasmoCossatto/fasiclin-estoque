@@ -85,24 +85,15 @@ public class MovimentacaoService {
                 throw new IllegalArgumentException("Quantidade deve ser maior que zero");
             }
             
-            if (movimentacao.getDataMovimentacao() == null) {
-                movimentacao.setDataMovimentacao(LocalDate.now());
-                log.info("Data de movimentação definida automaticamente: {}", movimentacao.getDataMovimentacao());
-            }
-            
-            // Definir hora atual se não informada
-            if (movimentacao.getHoraMovimentacao() == null) {
-                movimentacao.setHoraMovimentacao(LocalTime.now());
-                log.info("Hora de movimentação definida automaticamente: {}", movimentacao.getHoraMovimentacao());
-            }
-            
-            // Validar se a data é exatamente hoje
+            // SEMPRE usar data e hora atuais - ignorar o que vem do frontend
             LocalDate dataAtual = LocalDate.now();
-            if (!movimentacao.getDataMovimentacao().equals(dataAtual)) {
-                throw new IllegalArgumentException(
-                    String.format("Movimentação só pode ser realizada na data atual. Data informada: %s, Data atual: %s", 
-                        movimentacao.getDataMovimentacao(), dataAtual));
-            }
+            LocalTime horaAtual = LocalTime.now();
+            
+            movimentacao.setDataMovimentacao(dataAtual);
+            movimentacao.setHoraMovimentacao(horaAtual);
+            
+            log.info("Data/hora atuais definidas automaticamente - Data: {}, Hora: {}", 
+                    dataAtual, horaAtual);
             
             log.info("Validações básicas concluídas com sucesso");
             
@@ -115,7 +106,9 @@ public class MovimentacaoService {
             
             log.info("Salvando movimentação no banco de dados...");
             Movimentacao novaMovimentacao = movimentacaoRepository.save(movimentacao);
-            log.info("Movimentação inserida com sucesso - ID: {}", novaMovimentacao.getId());
+            log.info("Movimentação inserida com sucesso - ID: {}, Data: {}, Hora: {}", 
+                    novaMovimentacao.getId(), novaMovimentacao.getDataMovimentacao(), 
+                    novaMovimentacao.getHoraMovimentacao());
             return novaMovimentacao;
             
         } catch (IllegalArgumentException e) {
@@ -336,12 +329,18 @@ public class MovimentacaoService {
         Movimentacao movimentacao = new Movimentacao();
         movimentacao.setTipoMovimentacao(TipoMovimentacao.SAIDA); // Saída do setor origem
         movimentacao.setQuantidade(quantidade);
+        
+        // SEMPRE usar data e hora atuais
         movimentacao.setDataMovimentacao(LocalDate.now());
-        movimentacao.setHoraMovimentacao(LocalTime.now()); // Definir hora atual
+        movimentacao.setHoraMovimentacao(LocalTime.now());
+        
         movimentacao.setEstoque(estoque);
         movimentacao.setUsuario(usuario);
         movimentacao.setSetorOrigem(setorOrigem);
         movimentacao.setSetorDestino(setorDestino);
+        
+        log.info("Registro de movimentação criado com data/hora atuais: {} {}", 
+                movimentacao.getDataMovimentacao(), movimentacao.getHoraMovimentacao());
         
         return movimentacao;
     }
@@ -571,7 +570,9 @@ public class MovimentacaoService {
             Movimentacao mov1 = new Movimentacao();
             mov1.setTipoMovimentacao(TipoMovimentacao.ENTRADA);
             mov1.setQuantidade(100);
-            mov1.setDataMovimentacao(java.time.LocalDate.now());
+            // Usar data e hora atuais
+            mov1.setDataMovimentacao(LocalDate.now());
+            mov1.setHoraMovimentacao(LocalTime.now());
             
             // Criar entidades padrão para teste
             Estoque estoque1 = new Estoque();
@@ -593,7 +594,9 @@ public class MovimentacaoService {
             Movimentacao mov2 = new Movimentacao();
             mov2.setTipoMovimentacao(TipoMovimentacao.SAIDA);
             mov2.setQuantidade(50);
-            mov2.setDataMovimentacao(java.time.LocalDate.now().minusDays(1));
+            // Usar data atual e hora atual (não ontem)
+            mov2.setDataMovimentacao(LocalDate.now());
+            mov2.setHoraMovimentacao(LocalTime.now().minusHours(1)); // 1 hora atrás para diferenciação
             
             // Reutilizar as mesmas entidades para mov2
             mov2.setEstoque(estoque1);

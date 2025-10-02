@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import jakarta.validation.Valid;
 
@@ -42,12 +43,24 @@ public class MovimentacaoController {
         try {
             List<Movimentacao> movimentacoes = movimentacaoService.findAll();
             log.info("Encontradas {} movimentações", movimentacoes.size());
+            
+            // Log detalhado das primeiras movimentações para debug
+            if (movimentacoes.size() > 0) {
+                for (int i = 0; i < Math.min(3, movimentacoes.size()); i++) {
+                    Movimentacao mov = movimentacoes.get(i);
+                    log.info("Movimentação {}: ID={}, Tipo={}, Quantidade={}, Data={}, Hora={}", 
+                            i + 1, mov.getId(), mov.getTipoMovimentacao(), mov.getQuantidade(),
+                            mov.getDataMovimentacao(), mov.getHoraMovimentacao());
+                }
+            } else {
+                log.warn("Nenhuma movimentação encontrada no banco de dados!");
+            }
 
             return ResponseEntity.ok(movimentacoes);
         } catch (Exception e) {
             log.error("Erro ao listar movimentações: {}", e.getMessage(), e);
-            return ResponseEntity.status(500)
-                    .body(List.of()); // Retorna lista vazia em caso de erro
+            // Retornar lista vazia em vez de erro 500
+            return ResponseEntity.ok(List.of());
         }
     }
 
@@ -63,21 +76,48 @@ public class MovimentacaoController {
     }
 
     /**
-     * Registra uma nova movimentação
-     * Endpoint para registrar entrada ou saída de produtos
+     * Criar nova movimentação de estoque
+     * Endpoint para registrar entradas e saídas de produtos
      */
     @PostMapping
-    public ResponseEntity<Movimentacao> registrarMovimentacao(@RequestBody Movimentacao movimentacao) {
-        log.info("Registrando nova movimentação do tipo: {}", movimentacao.getTipoMovimentacao());
-        log.info("Dados recebidos - Quantidade: {}, Data: {}", movimentacao.getQuantidade(), movimentacao.getDataMovimentacao());
+    public ResponseEntity<Map<String, Object>> criarMovimentacao(@RequestBody Movimentacao movimentacao) {
+        log.info("Recebendo solicitação de movimentação: {}", movimentacao);
+        
+        Map<String, Object> response = new HashMap<>();
         
         try {
-            Movimentacao novaMovimentacao = movimentacaoService.insert(movimentacao);
-            log.info("Movimentação criada com sucesso - ID: {}", novaMovimentacao.getId());
-            return ResponseEntity.ok(novaMovimentacao);
+            // Inserir movimentação
+            Movimentacao movimentacaoSalva = movimentacaoService.insert(movimentacao);
+            log.info("Movimentação criada com sucesso, ID: {}", movimentacaoSalva.getId());
+            
+            // Verificar se a movimentação foi realmente salva
+            if (movimentacaoSalva != null && movimentacaoSalva.getId() != null) {
+                log.info("Confirmado: Movimentação salva no banco - ID={}, Tipo={}, Quantidade={}", 
+                        movimentacaoSalva.getId(), 
+                        movimentacaoSalva.getTipoMovimentacao(),
+                        movimentacaoSalva.getQuantidade());
+            } else {
+                log.error("ALERTA: Movimentação não foi salva corretamente!");
+            }
+            
+            response.put("success", true);
+            response.put("message", "Movimentação criada com sucesso");
+            response.put("id", movimentacaoSalva.getId());
+            response.put("movimentacao", movimentacaoSalva);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            log.warn("Erro de negócio: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+            
         } catch (Exception e) {
             log.error("Erro ao criar movimentação: {}", e.getMessage(), e);
-            throw e;
+            response.put("success", false);
+            response.put("message", "Erro interno do servidor: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
         }
     }
     

@@ -27,6 +27,11 @@
         <header class="header">
             <div class="header-content">
                 <h2 class="title">📦 Movimentações de Estoque</h2>
+                <div class="header-info">
+                    <span id="current-datetime" class="current-datetime">
+                        🕐 Carregando data/hora...
+                    </span>
+                </div>
             </div>
         </header>
 
@@ -40,6 +45,9 @@
                 <div class="action-bar-buttons">
                     <button class="btn" onclick="loadMovements()">
                         <span>🔄</span> Atualizar
+                    </button>
+                    <button class="btn btn-secondary" onclick="testLoadMovements()">
+                        <span>🧪</span> Teste Debug
                     </button>
                 </div>
             </div>
@@ -210,6 +218,58 @@
         // Executa na carga da página e no redimensionamento
         window.addEventListener('load', checkMobileView);
         window.addEventListener('resize', checkMobileView);
+        
+        // Função para atualizar data/hora atual
+        function updateCurrentDateTime() {
+            const now = new Date();
+            const dateTimeStr = now.toLocaleString('pt-BR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            const dateTimeElement = document.getElementById('current-datetime');
+            if (dateTimeElement) {
+                dateTimeElement.textContent = `🕐 ${dateTimeStr}`;
+            }
+        }
+        
+        // Atualizar a cada segundo
+        setInterval(updateCurrentDateTime, 1000);
+        updateCurrentDateTime(); // Primeira atualização imediata
+        
+        // Função para recarregar movimentações
+        function loadMovements() {
+            console.log('[DEBUG] Botão Atualizar clicado');
+            if (window.movimentacaoManager) {
+                window.movimentacaoManager.loadMovimentacoes().then(() => {
+                    window.movimentacaoManager.renderMovimentacoes();
+                });
+            }
+        }
+        
+        // Função de teste para debug
+        function testLoadMovements() {
+            console.log('[DEBUG] Botão Teste Debug clicado');
+            console.log('[DEBUG] movimentacaoManager disponível:', !!window.movimentacaoManager);
+            
+            if (window.movimentacaoManager) {
+                console.log('[DEBUG] Movimentações atuais:', window.movimentacaoManager.movimentacoes);
+                console.log('[DEBUG] Forçando dados mockados...');
+                
+                // Forçar dados mockados para teste
+                window.movimentacaoManager.movimentacoes = window.movimentacaoManager.getMockedMovimentacoes();
+                window.movimentacaoManager.renderMovimentacoes();
+                
+                alert(`Debug: ${window.movimentacaoManager.movimentacoes.length} movimentações carregadas (mockadas para teste)`);
+            } else {
+                alert('Debug: movimentacaoManager não está disponível!');
+            }
+        }
         
         // Adiciona efeitos visuais Apple-style
         document.addEventListener('DOMContentLoaded', function() {

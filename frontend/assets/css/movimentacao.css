@@ -34,6 +34,22 @@ body {
     gap: var(--spacing-lg);
 }
 
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.current-datetime {
+    background: rgba(0, 122, 255, 0.1);
+    color: var(--primary-600);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-lg);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    border: 1px solid rgba(0, 122, 255, 0.2);
+}
+
 .title {
     color: var(--gray-900);
     font-size: var(--font-size-3xl);
@@ -672,4 +688,82 @@ tbody td {
     .mobile-cards {
         display: flex;
     }
+}
+
+/* === MELHORIAS PAINEL DE ESTOQUE === */
+.stock-group {
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    background: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.stock-group-title {
+    background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+    color: white !important;
+    margin: 0;
+    padding: var(--spacing-md);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: none;
+}
+
+.stock-group-summary {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-normal);
+    opacity: 0.9;
+}
+
+.stock-group-content {
+    padding: var(--spacing-sm);
+}
+
+.stock-item {
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--gray-100);
+    transition: background-color 0.2s ease;
+    margin-bottom: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-radius: 0;
+}
+
+.stock-item:hover {
+    background: var(--gray-50);
+    transform: none;
+    box-shadow: none;
+    border-color: var(--gray-100);
+}
+
+.stock-item:last-child {
+    border-bottom: none;
+}
+
+.stock-item-empty {
+    text-align: center;
+    color: var(--gray-500);
+    font-style: italic;
+    padding: var(--spacing-lg);
+    background: var(--gray-50);
+}
+
+.stock-item-quantity.good-stock {
+    background: var(--success-100);
+    color: var(--success-700);
+}
+
+.stock-item-quantity.medium-stock {
+    background: var(--warning-100);
+    color: var(--warning-700);
+}
+
+.stock-item-quantity.low-stock {
+    background: var(--danger-100);
+    color: var(--danger-700);
 }

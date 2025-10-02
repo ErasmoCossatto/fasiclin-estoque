@@ -72,7 +72,23 @@ class ApiManager {
      * @returns {Promise<Array>} - Lista de movimentações
      */
     async listarMovimentacoes() {
-        return this.request('/movimentacoes');
+        console.log('[API] Iniciando requisição para listar movimentações...');
+        
+        try {
+            const result = await this.request('/movimentacoes');
+            console.log('[API] Resposta completa de movimentações:', result);
+            
+            if (result.success) {
+                console.log('[API] ✅ Movimentações carregadas com sucesso');
+                return result;
+            } else {
+                console.warn('[API] ⚠️ Resposta sem sucesso:', result);
+                return { success: false, data: [], error: 'Nenhuma movimentação encontrada' };
+            }
+        } catch (error) {
+            console.error('[API] ❌ Erro ao listar movimentações:', error);
+            throw error;
+        }
     }
 
     /**
