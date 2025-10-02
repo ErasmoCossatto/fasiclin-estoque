@@ -299,12 +299,12 @@ public class EstoqueService extends BaseService {
             List<Estoque> estoques = estoqueRepository.findAll();
             List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
             
-            // Simular dados organizados por setor para teste
+            // Distribuir estoques pelos setores de forma simples para demonstração
             // Em um cenário real, seria necessário ter relacionamento direto entre Estoque e Setor
             int contador = 1;
             
             for (Estoque estoque : estoques) {
-                if (estoque.getProduto() != null) {
+                if (estoque.getProduto() != null && estoque.getQuantidadeEstoque() > 0) {
                     // Forçar carregamento das relações lazy
                     String nomeProduto = estoque.getProduto().getNome();
                     String descricaoProduto = estoque.getProduto().getDescricao();
@@ -347,67 +347,14 @@ public class EstoqueService extends BaseService {
                 }
             }
             
-            // Se não há estoques suficientes, adicionar dados mockados
-            if (resultado.size() < 10) {
-                log.info("Complementando com dados mockados para demonstração");
-                resultado.addAll(criarDadosMockadosEstoquePorSetor());
-            }
-            
-            log.info("Retornando {} registros de estoque por setor", resultado.size());
+            log.info("Retornando {} registros de estoque por setor (dados reais)", resultado.size());
             return resultado;
             
         } catch (Exception e) {
             log.error("Erro ao buscar estoque por setor: {}", e.getMessage(), e);
-            // Retornar dados mockados em caso de erro
-            return criarDadosMockadosEstoquePorSetor();
+            // Retornar lista vazia em caso de erro ao invés de dados mockados
+            return new java.util.ArrayList<>();
         }
-    }
-    
-    /**
-     * Cria dados mockados de estoque por setor para demonstração
-     */
-    private List<java.util.Map<String, Object>> criarDadosMockadosEstoquePorSetor() {
-        List<java.util.Map<String, Object>> dadosMockados = new java.util.ArrayList<>();
-        
-        // Setor Compras
-        dadosMockados.add(criarItemEstoque(101, 1, "Dipirona 500mg", "Medicamento analgésico", 150, 1, "Compras"));
-        dadosMockados.add(criarItemEstoque(102, 2, "Paracetamol 750mg", "Medicamento antipirético", 200, 1, "Compras"));
-        dadosMockados.add(criarItemEstoque(103, 3, "Ibuprofeno 600mg", "Anti-inflamatório", 80, 1, "Compras"));
-        dadosMockados.add(criarItemEstoque(104, 4, "Seringas Descartáveis", "Seringas para injeção", 500, 1, "Compras"));
-        
-        // Setor Teste
-        dadosMockados.add(criarItemEstoque(201, 1, "Dipirona 500mg", "Medicamento analgésico", 25, 2, "Teste"));
-        dadosMockados.add(criarItemEstoque(202, 2, "Paracetamol 750mg", "Medicamento antipirético", 30, 2, "Teste"));
-        dadosMockados.add(criarItemEstoque(203, 5, "Luvas de Procedimento", "Luvas descartáveis", 120, 2, "Teste"));
-        dadosMockados.add(criarItemEstoque(204, 6, "Álcool 70%", "Desinfetante", 40, 2, "Teste"));
-        
-        // Setor Estoque
-        dadosMockados.add(criarItemEstoque(301, 1, "Dipirona 500mg", "Medicamento analgésico", 800, 3, "Estoque"));
-        dadosMockados.add(criarItemEstoque(302, 2, "Paracetamol 750mg", "Medicamento antipirético", 650, 3, "Estoque"));
-        dadosMockados.add(criarItemEstoque(303, 3, "Ibuprofeno 600mg", "Anti-inflamatório", 400, 3, "Estoque"));
-        dadosMockados.add(criarItemEstoque(304, 7, "Gaze Estéril", "Gaze para curativos", 300, 3, "Estoque"));
-        
-        return dadosMockados;
-    }
-    
-    /**
-     * Helper para criar item de estoque
-     */
-    private java.util.Map<String, Object> criarItemEstoque(int id, int produtoId, String nomeProduto, 
-                                                           String descricao, int quantidade, int setorId, String nomeSetor) {
-        java.util.Map<String, Object> item = new java.util.HashMap<>();
-        item.put("id", id);
-        item.put("produto", java.util.Map.of(
-            "id", produtoId,
-            "nome", nomeProduto,
-            "descricao", descricao
-        ));
-        item.put("quantidadeEstoque", quantidade);
-        item.put("setor", java.util.Map.of(
-            "id", setorId,
-            "nome", nomeSetor
-        ));
-        return item;
     }
 
     /**

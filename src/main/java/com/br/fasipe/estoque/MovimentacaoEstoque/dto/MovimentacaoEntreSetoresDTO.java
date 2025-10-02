@@ -28,7 +28,11 @@ public class MovimentacaoEntreSetoresDTO {
     @Positive(message = "A quantidade deve ser positiva")
     private Integer quantidade;
     
-    @NotNull(message = "O usuário deve ser informado")
+    @NotNull(message = "O tipo de movimentação deve ser informado")
+    private String tipoMovimentacao;
+    
+    // TODO: Remover nullable quando implementar variável global de usuário
+    // @NotNull(message = "O usuário deve ser informado")
     private Integer idUsuario;
     
     // Campo opcional para observações

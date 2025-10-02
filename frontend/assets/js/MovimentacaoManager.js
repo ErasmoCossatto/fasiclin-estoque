@@ -114,8 +114,8 @@ class MovimentacaoManager {
             console.error('[MovimentacaoManager] ❌ Erro ao carregar dados:', error);
             this.showNotification('Erro ao carregar dados: ' + error.message, 'error');
             
-            // Mesmo com erro, tentar renderizar com dados mockados
-            console.log('[MovimentacaoManager] 🔄 Tentando renderizar com dados de fallback...');
+            // Renderizar estado vazio em caso de erro
+            console.log('[MovimentacaoManager] 🔄 Renderizando estado vazio devido ao erro...');
             this.renderMovimentacoes();
         } finally {
             this.setLoading(false);
@@ -166,48 +166,16 @@ class MovimentacaoManager {
                 console.warn('[MovimentacaoManager] ⚠️ Resposta inválida ou sem dados:', result);
                 this.movimentacoes = [];
                 
-                // Tentar com dados mockados para teste
-                console.log('[MovimentacaoManager] Testando com dados mockados...');
-                this.movimentacoes = this.getMockedMovimentacoes();
-                
-                // Ordenar dados mockados também
-                this.movimentacoes.sort((a, b) => {
-                    const dateA = new Date(a.dataMovimentacao || '1970-01-01');
-                    const dateB = new Date(b.dataMovimentacao || '1970-01-01');
-                    
-                    if (dateB.getTime() !== dateA.getTime()) {
-                        return dateB.getTime() - dateA.getTime();
-                    }
-                    
-                    return (b.id || 0) - (a.id || 0);
-                });
-                
-                console.log(`[MovimentacaoManager] Usando ${this.movimentacoes.length} movimentações mockadas para teste (ordenadas)`);
-                
-                // Renderizar mesmo com dados mockados
+                // Renderizar estado vazio se não há dados
+                console.log('[MovimentacaoManager] Renderizando estado vazio - nenhuma movimentação encontrada');
                 this.renderMovimentacoes();
             }
         } catch (error) {
             console.error('[MovimentacaoManager] ❌ Erro ao carregar movimentações:', error);
             this.movimentacoes = [];
             
-            // Usar dados mockados como fallback
-            console.log('[MovimentacaoManager] Usando dados mockados como fallback devido ao erro');
-            this.movimentacoes = this.getMockedMovimentacoes();
-            
-            // Ordenar dados mockados de fallback também
-            this.movimentacoes.sort((a, b) => {
-                const dateA = new Date(a.dataMovimentacao || '1970-01-01');
-                const dateB = new Date(b.dataMovimentacao || '1970-01-01');
-                
-                if (dateB.getTime() !== dateA.getTime()) {
-                    return dateB.getTime() - dateA.getTime();
-                }
-                
-                return (b.id || 0) - (a.id || 0);
-            });
-            
-            // Renderizar mesmo com dados mockados de fallback
+            // Renderizar estado vazio em caso de erro
+            console.log('[MovimentacaoManager] Renderizando estado vazio devido ao erro');
             this.renderMovimentacoes();
         }
     }
@@ -309,89 +277,15 @@ class MovimentacaoManager {
             if (response.success && response.data) {
                 this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
                 console.log(`[MovimentacaoManager] ✅ ${this.estoquePorSetor.length} registros de estoque por setor carregados`);
-                
-                // Se não há dados suficientes, usar dados mockados expandidos
-                if (this.estoquePorSetor.length < 5) {
-                    console.warn('[MovimentacaoManager] Poucos dados retornados, complementando com dados mockados');
-                    this.estoquePorSetor = this.getMockedEstoquePorSetorExpandido();
-                }
             } else {
-                console.warn('[MovimentacaoManager] Nenhum estoque por setor encontrado, usando dados mockados');
-                this.estoquePorSetor = this.getMockedEstoquePorSetorExpandido();
+                console.warn('[MovimentacaoManager] Nenhum estoque por setor encontrado');
+                this.estoquePorSetor = [];
             }
             
         } catch (error) {
             console.error('[MovimentacaoManager] Erro ao carregar estoque por setor:', error);
-            this.estoquePorSetor = this.getMockedEstoquePorSetorExpandido();
+            this.estoquePorSetor = [];
         }
-    }
-
-    /**
-     * Retorna dados mockados expandidos de estoque por setor
-     * Inclui mais produtos distribuídos pelos setores Compras, Teste e Estoque
-     */
-    getMockedEstoquePorSetorExpandido() {
-        return [
-            // SETOR COMPRAS - Produtos diversos com quantidades variadas
-            { id: 101, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico e antitérmico' }, quantidadeEstoque: 150, setor: { id: 1, nome: 'Compras' } },
-            { id: 102, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 200, setor: { id: 1, nome: 'Compras' } },
-            { id: 103, produto: { id: 3, nome: 'Ibuprofeno 600mg', descricao: 'Anti-inflamatório' }, quantidadeEstoque: 80, setor: { id: 1, nome: 'Compras' } },
-            { id: 104, produto: { id: 4, nome: 'Seringas Descartáveis', descricao: 'Seringas para injeção' }, quantidadeEstoque: 500, setor: { id: 1, nome: 'Compras' } },
-            { id: 105, produto: { id: 5, nome: 'Luvas de Procedimento', descricao: 'Luvas descartáveis' }, quantidadeEstoque: 300, setor: { id: 1, nome: 'Compras' } },
-            { id: 106, produto: { id: 6, nome: 'Álcool 70%', descricao: 'Desinfetante' }, quantidadeEstoque: 120, setor: { id: 1, nome: 'Compras' } },
-            
-            // SETOR TESTE - Produtos para teste com quantidades menores
-            { id: 201, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico e antitérmico' }, quantidadeEstoque: 25, setor: { id: 2, nome: 'Teste' } },
-            { id: 202, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 30, setor: { id: 2, nome: 'Teste' } },
-            { id: 203, produto: { id: 7, nome: 'Gaze Estéril', descricao: 'Gaze para curativos' }, quantidadeEstoque: 40, setor: { id: 2, nome: 'Teste' } },
-            { id: 204, produto: { id: 8, nome: 'Esparadrapo', descricao: 'Fita adesiva médica' }, quantidadeEstoque: 60, setor: { id: 2, nome: 'Teste' } },
-            { id: 205, produto: { id: 9, nome: 'Termômetro Digital', descricao: 'Medição de temperatura' }, quantidadeEstoque: 15, setor: { id: 2, nome: 'Teste' } },
-            
-            // SETOR ESTOQUE - Estoque principal com maiores quantidades
-            { id: 301, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico e antitérmico' }, quantidadeEstoque: 800, setor: { id: 3, nome: 'Estoque' } },
-            { id: 302, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 650, setor: { id: 3, nome: 'Estoque' } },
-            { id: 303, produto: { id: 3, nome: 'Ibuprofeno 600mg', descricao: 'Anti-inflamatório' }, quantidadeEstoque: 400, setor: { id: 3, nome: 'Estoque' } },
-            { id: 304, produto: { id: 4, nome: 'Seringas Descartáveis', descricao: 'Seringas para injeção' }, quantidadeEstoque: 1200, setor: { id: 3, nome: 'Estoque' } },
-            { id: 305, produto: { id: 5, nome: 'Luvas de Procedimento', descricao: 'Luvas descartáveis' }, quantidadeEstoque: 800, setor: { id: 3, nome: 'Estoque' } },
-            { id: 306, produto: { id: 6, nome: 'Álcool 70%', descricao: 'Desinfetante' }, quantidadeEstoque: 250, setor: { id: 3, nome: 'Estoque' } },
-            { id: 307, produto: { id: 7, nome: 'Gaze Estéril', descricao: 'Gaze para curativos' }, quantidadeEstoque: 300, setor: { id: 3, nome: 'Estoque' } },
-            { id: 308, produto: { id: 8, nome: 'Esparadrapo', descricao: 'Fita adesiva médica' }, quantidadeEstoque: 180, setor: { id: 3, nome: 'Estoque' } },
-            { id: 309, produto: { id: 9, nome: 'Termômetro Digital', descricao: 'Medição de temperatura' }, quantidadeEstoque: 45, setor: { id: 3, nome: 'Estoque' } },
-            { id: 310, produto: { id: 10, nome: 'Material Cirúrgico', descricao: 'Instrumentos cirúrgicos' }, quantidadeEstoque: 75, setor: { id: 3, nome: 'Estoque' } },
-            { id: 311, produto: { id: 11, nome: 'Equipamentos Médicos', descricao: 'Equipamentos diversos' }, quantidadeEstoque: 35, setor: { id: 3, nome: 'Estoque' } }
-        ];
-    }
-
-    /**
-     * Retorna dados mockados de estoque por setor - apenas produtos COM almoxarifado
-     */
-    getMockedEstoquePorSetorComAlmoxarifado() {
-        return [
-            // Setor Compras - produtos COM almoxarifado
-            { id: 1, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico' }, quantidadeEstoque: 500, setor: { id: 1, nome: 'Compras' } },
-            { id: 2, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 300, setor: { id: 1, nome: 'Compras' } },
-            { id: 3, produto: { id: 3, nome: 'Material Cirúrgico', descricao: 'Instrumentos cirúrgicos' }, quantidadeEstoque: 50, setor: { id: 1, nome: 'Compras' } },
-            { id: 4, produto: { id: 4, nome: 'Seringas Descartáveis', descricao: 'Seringas para injeção' }, quantidadeEstoque: 200, setor: { id: 1, nome: 'Compras' } },
-            
-            // Setor Teste - produtos COM almoxarifado
-            { id: 5, produto: { id: 5, nome: 'Ibuprofeno 600mg', descricao: 'Anti-inflamatório' }, quantidadeEstoque: 80, setor: { id: 2, nome: 'Teste' } },
-            { id: 6, produto: { id: 6, nome: 'Luvas de Procedimento', descricao: 'Luvas descartáveis' }, quantidadeEstoque: 120, setor: { id: 2, nome: 'Teste' } },
-            { id: 7, produto: { id: 7, nome: 'Gaze Estéril', descricao: 'Gaze para curativos' }, quantidadeEstoque: 60, setor: { id: 2, nome: 'Teste' } },
-            { id: 8, produto: { id: 8, nome: 'Álcool 70%', descricao: 'Desinfetante' }, quantidadeEstoque: 40, setor: { id: 2, nome: 'Teste' } },
-            
-            // Setor Estoque - produtos COM almoxarifado
-            { id: 9, produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico' }, quantidadeEstoque: 1000, setor: { id: 3, nome: 'Estoque' } },
-            { id: 10, produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }, quantidadeEstoque: 800, setor: { id: 3, nome: 'Estoque' } },
-            { id: 11, produto: { id: 9, nome: 'Equipamentos Médicos', descricao: 'Equipamentos diversos' }, quantidadeEstoque: 25, setor: { id: 3, nome: 'Estoque' } },
-            { id: 12, produto: { id: 10, nome: 'Material de Limpeza', descricao: 'Produtos de limpeza hospitalar' }, quantidadeEstoque: 150, setor: { id: 3, nome: 'Estoque' } }
-        ];
-    }
-
-    /**
-     * Retorna dados mockados de estoque por setor (método antigo - manter para compatibilidade)
-     */
-    getMockedEstoquePorSetor() {
-        return this.getMockedEstoquePorSetorComAlmoxarifado();
     }
 
     /**
@@ -806,18 +700,20 @@ class MovimentacaoManager {
 
         try {
             this.setLoading(true);
-            console.log('[MovimentacaoManager] Enviando dados para API:', JSON.stringify(formData, null, 2));
+            console.log('[MovimentacaoManager] Enviando dados para API de transferência entre setores:', JSON.stringify(formData, null, 2));
             
             let response;
             if (this.currentEditId) {
                 console.log('[MovimentacaoManager] Atualizando movimentação ID:', this.currentEditId);
+                // Para edição, usar endpoint tradicional
                 response = await this.apiManager.request(`/movimentacoes/${this.currentEditId}`, {
                     method: 'PUT',
                     body: JSON.stringify(formData)
                 });
             } else {
-                console.log('[MovimentacaoManager] Criando nova movimentação');
-                response = await this.apiManager.request('/movimentacoes', {
+                console.log('[MovimentacaoManager] Criando nova transferência entre setores');
+                // Para nova movimentação, usar endpoint de transferência entre setores
+                response = await this.apiManager.request('/movimentacoes/entre-setores', {
                     method: 'POST',
                     body: JSON.stringify(formData)
                 });
@@ -834,17 +730,22 @@ class MovimentacaoManager {
                 
                 // Aguardar um pequeno delay para permitir que o backend processe completamente
                 console.log('[MovimentacaoManager] Aguardando processamento do backend...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
-                // Recarregar todos os dados para manter consistência
+                // Recarregar dados em paralelo para máxima eficiência
                 console.log('[MovimentacaoManager] Recarregando dados após movimentação...');
-                await this.loadMovimentacoes(); // Este método agora já força a renderização
-                await this.loadEstoquePorSetor(); // Recarregar estoque para atualizar quantidades
-                this.renderStockPanel(); // Atualizar painel lateral
+                await Promise.all([
+                    this.loadMovimentacoes(),
+                    this.loadEstoquePorSetor()
+                ]);
                 
-                // Garantir renderização final
-                console.log('[MovimentacaoManager] 🔄 Garantindo renderização final...');
+                // Forçar renderização de todos os componentes
+                console.log('[MovimentacaoManager] 🔄 Atualizando interface...');
                 this.renderMovimentacoes();
+                this.renderStockPanel();
+                
+                // Mostrar notificação de atualização do painel
+                this.showNotification('📊 Painel de estoque atualizado com novas quantidades', 'info', 2000);
             } else {
                 console.error('[MovimentacaoManager] Erro na resposta da API:', response);
                 this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
@@ -859,60 +760,51 @@ class MovimentacaoManager {
     }
 
     /**
-     * Obtém dados do formulário
+     * Obtém dados do formulário formatados para transferência entre setores
      */
     getFormData() {
-        const estoqueId = parseInt(document.getElementById('produtoSelect').value);
-        // TODO: Usar variável global do usuário quando implementada
-        // Por enquanto, não enviamos usuário (será null no backend temporariamente)
+        const produtoId = parseInt(document.getElementById('produtoSelect').value);
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
+        const quantidade = parseInt(document.getElementById('amount').value) || 0;
+        const tipoMovimentacao = document.getElementById('type').value;
         
-        // Garantir que sempre usa a data e hora atuais (respeitando fuso horário local)
-        const agora = new Date();
-        const dataAtual = this.formatLocalDateForBackend(agora); // YYYY-MM-DD para o backend
-        
-        console.log('[MovimentacaoManager] Coletando dados do formulário:', {
-            estoqueId,
-            usuario: 'null (aguardando implementação de variável global)',
+        console.log('[MovimentacaoManager] Coletando dados do formulário para transferência entre setores:', {
+            produtoId,
             setorOrigemId,
             setorDestinoId,
-            dataMovimentacao: dataAtual,
-            dataAtualFormatada: agora.toLocaleDateString('pt-BR'),
-            horaAtual: agora.toLocaleTimeString('pt-BR')
+            quantidade,
+            tipoMovimentacao,
+            usuario: 'null (aguardando implementação de variável global)'
         });
         
+        // Formato esperado pelo MovimentacaoEntreSetoresDTO
         return {
-            // O backend espera objetos, não apenas IDs - usando estoque corretamente
-            estoque: estoqueId ? { id: estoqueId } : null,
-            usuario: null, // Será null até implementar variável global de usuário
-            setorOrigem: setorOrigemId ? { id: setorOrigemId } : null,
-            setorDestino: setorDestinoId ? { id: setorDestinoId } : null,
-            tipoMovimentacao: document.getElementById('type').value,
-            quantidade: parseInt(document.getElementById('amount').value) || 0,
-            dataMovimentacao: dataAtual // Sempre usar data atual
+            idProduto: produtoId,
+            idSetorOrigem: setorOrigemId,
+            idSetorDestino: setorDestinoId,
+            quantidade: quantidade,
+            tipoMovimentacao: tipoMovimentacao,
+            idUsuario: null // Temporariamente null até implementar variável global
         };
     }
 
     /**
-     * Valida formulário com validação de estoque
+     * Valida formulário para transferência entre setores
      */
     async validateForm(data) {
         const errors = [];
 
-        if (!data.estoque || !data.estoque.id) errors.push('Selecione um produto');
-        // Usuario será null até implementar variável global - não validar por enquanto
-        if (!data.setorOrigem || !data.setorOrigem.id) errors.push('Selecione o setor de origem');
-        if (!data.setorDestino || !data.setorDestino.id) errors.push('Selecione o setor de destino');
+        if (!data.idProduto) errors.push('Selecione um produto');
+        if (!data.idSetorOrigem) errors.push('Selecione o setor de origem');
+        if (!data.idSetorDestino) errors.push('Selecione o setor de destino');
         if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
         if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
 
         // Validar se setor origem é diferente do destino
-        if (data.setorOrigem && data.setorDestino && data.setorOrigem.id === data.setorDestino.id) {
+        if (data.idSetorOrigem === data.idSetorDestino) {
             errors.push('Setor de origem deve ser diferente do setor de destino');
         }
-
-        // Data é automática (hoje), não precisa validar
 
         if (errors.length > 0) {
             this.showNotification(errors.join('<br>'), 'error');
@@ -920,8 +812,8 @@ class MovimentacaoManager {
         }
 
         // Validação avançada de estoque disponível
-        if (data.estoque && data.estoque.id && data.quantidade && data.setorOrigem && data.setorOrigem.id) {
-            const estoqueNoSetor = this.getEstoqueDisponivelNoSetor(data.estoque.id, data.setorOrigem.id);
+        if (data.idProduto && data.quantidade && data.idSetorOrigem) {
+            const estoqueNoSetor = this.getEstoqueDisponivelNoSetor(data.idProduto, data.idSetorOrigem);
             
             if (estoqueNoSetor === null) {
                 this.showNotification(
@@ -933,7 +825,7 @@ class MovimentacaoManager {
             }
             
             if (data.quantidade > estoqueNoSetor) {
-                const nomeSetorOrigem = this.setores.find(s => s.id == data.setorOrigem.id)?.nome || 'Setor desconhecido';
+                const nomeSetorOrigem = this.setores.find(s => s.id == data.idSetorOrigem)?.nome || 'Setor desconhecido';
                 this.showNotification(
                     `❌ Quantidade insuficiente no setor de origem!<br>` +
                     `Setor: ${nomeSetorOrigem}<br>` +
@@ -945,7 +837,7 @@ class MovimentacaoManager {
             }
         }
 
-        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso (sem usuário - aguardando variável global):', data);
+        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso para transferência entre setores:', data);
         return true;
     }
 
@@ -1041,84 +933,6 @@ class MovimentacaoManager {
     }
 
     /**
-     * Dados mockados para fallback
-     */
-    getMockedMovimentacoes() {
-        const agora = new Date();
-        const hoje = this.formatLocalDateForBackend(agora);
-        const horaAtual = agora.toTimeString().split(' ')[0];
-        
-        return [
-            {
-                id: 1,
-                tipoMovimentacao: 'ENTRADA',
-                quantidade: 100,
-                dataMovimentacao: hoje,
-                horaMovimentacao: horaAtual,
-                estoque: { 
-                    id: 1,
-                    produto: { id: 1, nome: 'Dipirona 500mg', descricao: 'Medicamento analgésico' }
-                },
-                setorOrigem: { id: 1, nome: 'Compras' },
-                setorDestino: { id: 3, nome: 'Estoque' },
-                usuario: { id: 1, nome: 'Admin Sistema', login: 'admin' }
-            },
-            {
-                id: 2,
-                tipoMovimentacao: 'SAIDA',
-                quantidade: 25,
-                dataMovimentacao: hoje,
-                horaMovimentacao: new Date(agora.getTime() - 60000).toTimeString().split(' ')[0], // 1 minuto atrás
-                estoque: { 
-                    id: 2,
-                    produto: { id: 2, nome: 'Paracetamol 750mg', descricao: 'Medicamento antipirético' }
-                },
-                setorOrigem: { id: 3, nome: 'Estoque' },
-                setorDestino: { id: 2, nome: 'Teste' },
-                usuario: { id: 1, nome: 'Admin Sistema', login: 'admin' }
-            },
-            {
-                id: 3,
-                tipoMovimentacao: 'ENTRADA',
-                quantidade: 50,
-                dataMovimentacao: hoje,
-                horaMovimentacao: new Date(agora.getTime() - 120000).toTimeString().split(' ')[0], // 2 minutos atrás
-                estoque: { 
-                    id: 3,
-                    produto: { id: 3, nome: 'Ibuprofeno 600mg', descricao: 'Anti-inflamatório' }
-                },
-                setorOrigem: { id: 1, nome: 'Compras' },
-                setorDestino: { id: 2, nome: 'Teste' },
-                usuario: { id: 1, nome: 'Admin Sistema', login: 'admin' }
-            }
-        ];
-    }
-
-    getMockedProdutos() {
-        return [
-            { id: 1, nome: 'Dipirona 500mg' },
-            { id: 2, nome: 'Paracetamol 750mg' },
-            { id: 3, nome: 'Ibuprofeno 600mg' }
-        ];
-    }
-
-    getMockedUsuarios() {
-        return [
-            { id: 1, nome: 'Admin Sistema' },
-            { id: 2, nome: 'João Silva' },
-            { id: 3, nome: 'Maria Santos' }
-        ];
-    }
-
-    getMockedSetores() {
-        return [
-            { id: 1, nome: 'Compras' },
-            { id: 2, nome: 'Teste' },
-            { id: 3, nome: 'Estoque' }
-        ];
-    }
-
-    /**
      * ===== MÉTODOS DE PRODUTOS =====
      */
 
@@ -1147,17 +961,17 @@ class MovimentacaoManager {
                 this.populateProdutoSelect(produtos);
                 console.log(`[PRODUTOS] ✅ ${produtos.length} produtos carregados com sucesso`);
             } else {
-                console.warn('[PRODUTOS] Nenhum produto encontrado, usando dados mockados');
-                this.produtos = this.getMockedProdutos();
-                this.populateProdutoSelect(this.produtos);
+                console.warn('[PRODUTOS] Nenhum produto encontrado');
+                this.produtos = [];
+                this.populateProdutoSelect([]);
             }
         } catch (error) {
             console.error('[PRODUTOS] ❌ Erro ao carregar produtos:', error);
             this.showNotification('Erro ao carregar produtos: ' + error.message, 'error');
             
-            // Usa dados mockados como fallback
-            this.produtos = this.getMockedProdutos();
-            this.populateProdutoSelect(this.produtos);
+            // Define produtos como array vazio em caso de erro
+            this.produtos = [];
+            this.populateProdutoSelect([]);
         }
     }
 
@@ -1270,102 +1084,6 @@ class MovimentacaoManager {
             this.showNotification('Não foi possível validar o estoque. Prossiga com cautela.', 'warning');
             return true;
         }
-    }
-
-    /**
-     * Retorna produtos mockados para fallback
-     */
-    getMockedProdutos() {
-        return [
-            {
-                id: 1,
-                idProduto: 1,
-                nome: 'Esparadrapo',
-                descricao: 'Esparadrapo tecido branco 10cm x 4,5m',
-                stqMax: 1000,
-                stqMin: 200,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 2,
-                idProduto: 2,
-                nome: 'Termômetro Digital',
-                descricao: 'Termômetro digital com medição rápida e precisa da temperatura',
-                stqMax: 50,
-                stqMin: 5,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 5,
-                idProduto: 5,
-                nome: 'Esparadrapo',
-                descricao: 'Esparadrapo resistente à água, indicado para curativos.',
-                stqMax: 100,
-                stqMin: 10,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 6,
-                idProduto: 6,
-                nome: 'Vacina Antitetânica',
-                descricao: 'Vacina indicada para prevenção do tétano',
-                stqMax: 50,
-                stqMin: 10,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 8,
-                idProduto: 8,
-                nome: 'Vacina',
-                descricao: 'Vacina',
-                stqMax: 22,
-                stqMin: 5,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 9,
-                idProduto: 9,
-                nome: 'Soro',
-                descricao: 'Soro',
-                stqMax: 150,
-                stqMin: 30,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 10,
-                idProduto: 10,
-                nome: 'Luva',
-                descricao: 'Luva',
-                stqMax: 250,
-                stqMin: 50,
-                podeMovimentar: true,
-                almoxarifado: 'Almoxarifado Central',
-                idAlmoxarifado: 1
-            },
-            {
-                id: 11,
-                idProduto: 11,
-                nome: 'Luvas de Procedimento Não Estéreis',
-                descricao: 'Luvas descartáveis de látex não estéreis, ideais para procedimentos médicos básicos',
-                stqMax: 500,
-                stqMin: 50,
-                podeMovimentar: false,
-                almoxarifado: 'Sem almoxarifado',
-                idAlmoxarifado: null
-            }
-        ];
     }
 
     /**
@@ -1560,7 +1278,7 @@ class MovimentacaoManager {
         console.log('[ESTOQUE] Renderizando painel. Dados:', this.estoquePorSetor);
 
         if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
-            stockContainer.innerHTML = '<div class="loading-stocks">Nenhum estoque encontrado</div>';
+            stockContainer.innerHTML = '<div class="loading-stocks">Nenhum produto em estoque encontrado</div>';
             return;
         }
 
@@ -1587,8 +1305,15 @@ class MovimentacaoManager {
             html += this.renderSetorGroup(setorNome, produtos);
         });
 
-        stockContainer.innerHTML = html || '<div class="loading-stocks">Nenhum produto encontrado</div>';
+        stockContainer.innerHTML = html || '<div class="loading-stocks">Nenhum produto encontrado nos setores</div>';
         console.log('[ESTOQUE] HTML renderizado:', html.length > 0 ? 'OK' : 'VAZIO');
+        
+        // Adicionar efeito visual de atualização
+        stockContainer.style.opacity = '0.7';
+        setTimeout(() => {
+            stockContainer.style.transition = 'opacity 0.3s ease';
+            stockContainer.style.opacity = '1';
+        }, 100);
     }
 
     /**
