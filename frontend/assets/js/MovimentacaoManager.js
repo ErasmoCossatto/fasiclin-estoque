@@ -140,10 +140,28 @@ class MovimentacaoManager {
                     this.movimentacoes = [result.data];
                 }
                 
-                console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações carregadas:`);
+                // Ordenar movimentações em ordem decrescente (mais recentes primeiro)
+                this.movimentacoes.sort((a, b) => {
+                    // Primeiro por data (mais recente primeiro)
+                    const dateA = new Date(a.dataMovimentacao || '1970-01-01');
+                    const dateB = new Date(b.dataMovimentacao || '1970-01-01');
+                    
+                    if (dateB.getTime() !== dateA.getTime()) {
+                        return dateB.getTime() - dateA.getTime();
+                    }
+                    
+                    // Se as datas forem iguais, ordenar por ID (maior ID primeiro = mais recente)
+                    return (b.id || 0) - (a.id || 0);
+                });
+                
+                console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações carregadas e ordenadas (mais recentes primeiro):`);
                 this.movimentacoes.forEach((mov, index) => {
                     console.log(`  ${index + 1}. ID: ${mov.id}, Tipo: ${mov.tipoMovimentacao}, Quantidade: ${mov.quantidade}, Data: ${mov.dataMovimentacao}`);
                 });
+                
+                // Forçar renderização imediata após carregamento bem-sucedido
+                console.log('[MovimentacaoManager] 🔄 Forçando renderização após carregamento de movimentações...');
+                this.renderMovimentacoes();
             } else {
                 console.warn('[MovimentacaoManager] ⚠️ Resposta inválida ou sem dados:', result);
                 this.movimentacoes = [];
@@ -151,7 +169,23 @@ class MovimentacaoManager {
                 // Tentar com dados mockados para teste
                 console.log('[MovimentacaoManager] Testando com dados mockados...');
                 this.movimentacoes = this.getMockedMovimentacoes();
-                console.log(`[MovimentacaoManager] Usando ${this.movimentacoes.length} movimentações mockadas para teste`);
+                
+                // Ordenar dados mockados também
+                this.movimentacoes.sort((a, b) => {
+                    const dateA = new Date(a.dataMovimentacao || '1970-01-01');
+                    const dateB = new Date(b.dataMovimentacao || '1970-01-01');
+                    
+                    if (dateB.getTime() !== dateA.getTime()) {
+                        return dateB.getTime() - dateA.getTime();
+                    }
+                    
+                    return (b.id || 0) - (a.id || 0);
+                });
+                
+                console.log(`[MovimentacaoManager] Usando ${this.movimentacoes.length} movimentações mockadas para teste (ordenadas)`);
+                
+                // Renderizar mesmo com dados mockados
+                this.renderMovimentacoes();
             }
         } catch (error) {
             console.error('[MovimentacaoManager] ❌ Erro ao carregar movimentações:', error);
@@ -160,6 +194,21 @@ class MovimentacaoManager {
             // Usar dados mockados como fallback
             console.log('[MovimentacaoManager] Usando dados mockados como fallback devido ao erro');
             this.movimentacoes = this.getMockedMovimentacoes();
+            
+            // Ordenar dados mockados de fallback também
+            this.movimentacoes.sort((a, b) => {
+                const dateA = new Date(a.dataMovimentacao || '1970-01-01');
+                const dateB = new Date(b.dataMovimentacao || '1970-01-01');
+                
+                if (dateB.getTime() !== dateA.getTime()) {
+                    return dateB.getTime() - dateA.getTime();
+                }
+                
+                return (b.id || 0) - (a.id || 0);
+            });
+            
+            // Renderizar mesmo com dados mockados de fallback
+            this.renderMovimentacoes();
         }
     }
 
@@ -435,45 +484,65 @@ class MovimentacaoManager {
      * Renderiza tabela/cards de movimentações
      */
     renderMovimentacoes() {
-        console.log('[MovimentacaoManager] Iniciando renderização de movimentações...');
-        console.log('[MovimentacaoManager] Movimentações disponíveis:', this.movimentacoes);
+        console.log('[MovimentacaoManager] 🎨 INICIANDO RENDERIZAÇÃO DE MOVIMENTAÇÕES...');
+        console.log('[MovimentacaoManager] Dados das movimentações:', {
+            existe: !!this.movimentacoes,
+            ehArray: Array.isArray(this.movimentacoes),
+            quantidade: this.movimentacoes?.length || 0,
+            dados: this.movimentacoes
+        });
         
         const tableBody = document.getElementById('movements-table-body');
         const mobileCards = document.getElementById('mobile-cards');
         
+        console.log('[MovimentacaoManager] Elementos DOM encontrados:', {
+            tableBody: !!tableBody,
+            mobileCards: !!mobileCards
+        });
+        
         if (!tableBody && !mobileCards) {
-            console.error('[MovimentacaoManager] ❌ Elementos de renderização não encontrados');
+            console.error('[MovimentacaoManager] ❌ ERRO CRÍTICO: Elementos de renderização não encontrados');
+            console.error('[MovimentacaoManager] Verifique se os elementos DOM existem na página');
             return;
         }
 
         if (!this.movimentacoes || this.movimentacoes.length === 0) {
-            console.warn('[MovimentacaoManager] ⚠️ Nenhuma movimentação para renderizar');
+            console.warn('[MovimentacaoManager] ⚠️ Nenhuma movimentação para renderizar - exibindo estado vazio');
             this.renderEmptyState();
             return;
         }
 
-        console.log(`[MovimentacaoManager] 📊 Renderizando ${this.movimentacoes.length} movimentações...`);
+        console.log(`[MovimentacaoManager] 📊 RENDERIZANDO ${this.movimentacoes.length} MOVIMENTAÇÕES...`);
 
         // Renderizar tabela desktop
         if (tableBody) {
+            console.log('[MovimentacaoManager] 🖥️ Renderizando tabela desktop...');
             const tableHTML = this.movimentacoes.map((mov, index) => {
-                console.log(`  Renderizando movimentação ${index + 1}:`, mov);
+                console.log(`  📋 Processando movimentação ${index + 1} (ID: ${mov.id}):`, mov);
                 return this.createTableRow(mov);
             }).join('');
             
             tableBody.innerHTML = tableHTML;
-            console.log('[MovimentacaoManager] ✅ Tabela desktop renderizada');
+            console.log('[MovimentacaoManager] ✅ Tabela desktop renderizada com sucesso');
+            console.log('[MovimentacaoManager] HTML da tabela:', tableBody.innerHTML.substring(0, 200) + '...');
         }
 
         // Renderizar cards mobile
         if (mobileCards) {
+            console.log('[MovimentacaoManager] 📱 Renderizando cards mobile...');
             const cardsHTML = this.movimentacoes.map(mov => this.createCard(mov)).join('');
             mobileCards.innerHTML = cardsHTML;
-            console.log('[MovimentacaoManager] ✅ Cards mobile renderizados');
+            console.log('[MovimentacaoManager] ✅ Cards mobile renderizados com sucesso');
         }
 
         this.updatePaginationInfo();
-        console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações renderizadas com sucesso`);
+        console.log(`[MovimentacaoManager] 🎉 RENDERIZAÇÃO CONCLUÍDA COM SUCESSO: ${this.movimentacoes.length} movimentações exibidas`);
+        
+        // Verificação final do DOM
+        setTimeout(() => {
+            const finalRows = document.querySelectorAll('#movements-table-body tr');
+            console.log(`[MovimentacaoManager] 🔍 Verificação final: ${finalRows.length} linhas encontradas na tabela`);
+        }, 100);
     }
 
     /**
@@ -481,6 +550,7 @@ class MovimentacaoManager {
      */
     createTableRow(movimentacao) {
         console.log('[MovimentacaoManager] Criando linha para movimentação:', movimentacao);
+        console.log('[MovimentacaoManager] Data recebida:', movimentacao.dataMovimentacao, 'Hora recebida:', movimentacao.horaMovimentacao);
         
         const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
         const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
@@ -507,6 +577,7 @@ class MovimentacaoManager {
                            'Produto N/A';
         
         const dataHora = this.formatDateTime(movimentacao.dataMovimentacao, movimentacao.horaMovimentacao);
+        console.log('[MovimentacaoManager] Data/hora formatada:', dataHora);
         
         const row = `
             <tr data-id="${movimentacao.id}">
@@ -761,14 +832,19 @@ class MovimentacaoManager {
                 );
                 this.hideModal();
                 
+                // Aguardar um pequeno delay para permitir que o backend processe completamente
+                console.log('[MovimentacaoManager] Aguardando processamento do backend...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
                 // Recarregar todos os dados para manter consistência
                 console.log('[MovimentacaoManager] Recarregando dados após movimentação...');
-                await this.loadMovimentacoes();
+                await this.loadMovimentacoes(); // Este método agora já força a renderização
                 await this.loadEstoquePorSetor(); // Recarregar estoque para atualizar quantidades
-                this.renderMovimentacoes();
                 this.renderStockPanel(); // Atualizar painel lateral
                 
-                this.showNotification('📊 Interface atualizada com novas quantidades', 'info', 2000);
+                // Garantir renderização final
+                console.log('[MovimentacaoManager] 🔄 Garantindo renderização final...');
+                this.renderMovimentacoes();
             } else {
                 console.error('[MovimentacaoManager] Erro na resposta da API:', response);
                 this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
@@ -792,16 +868,18 @@ class MovimentacaoManager {
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
         
-        // Garantir que sempre usa a data e hora atuais
+        // Garantir que sempre usa a data e hora atuais (formato brasileiro)
         const agora = new Date();
-        const dataAtual = agora.toISOString().split('T')[0]; // YYYY-MM-DD
+        const dataAtual = agora.toISOString().split('T')[0]; // YYYY-MM-DD para o backend
         
         console.log('[MovimentacaoManager] Coletando dados do formulário:', {
             estoqueId,
             usuario: 'null (aguardando implementação de variável global)',
             setorOrigemId,
             setorDestinoId,
-            dataMovimentacao: dataAtual
+            dataMovimentacao: dataAtual,
+            dataAtualFormatada: agora.toLocaleDateString('pt-BR'),
+            horaAtual: agora.toLocaleTimeString('pt-BR')
         });
         
         return {
@@ -1617,14 +1695,37 @@ class MovimentacaoManager {
         `;
     }
     formatDate(dateString) {
-        if (!dateString) return 'N/A';
+        if (!dateString) {
+            // Se não há data, usar data atual
+            const agora = new Date();
+            return agora.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
         
         try {
-            const date = new Date(dateString);
+            let date;
+            
+            // Se é um array (formato LocalDate do Spring Boot) [ano, mês, dia]
+            if (Array.isArray(dateString) && dateString.length >= 3) {
+                date = new Date(dateString[0], dateString[1] - 1, dateString[2]); // mês é 0-indexado
+            } else {
+                // Tentar como string de data
+                date = new Date(dateString);
+            }
             
             // Verificar se a data é válida
             if (isNaN(date.getTime())) {
-                return 'Data inválida';
+                console.warn('[MovimentacaoManager] Data inválida recebida:', dateString);
+                // Retornar data atual como fallback
+                const agora = new Date();
+                return agora.toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
             }
             
             // Formatar para o padrão brasileiro DD/MM/YYYY
@@ -1634,8 +1735,14 @@ class MovimentacaoManager {
                 year: 'numeric'
             });
         } catch (error) {
-            console.error('[MovimentacaoManager] Erro ao formatar data:', error);
-            return 'Erro na data';
+            console.error('[MovimentacaoManager] Erro ao formatar data:', error, 'Data recebida:', dateString);
+            // Retornar data atual como fallback em caso de erro
+            const agora = new Date();
+            return agora.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
         }
     }
 
@@ -1694,21 +1801,8 @@ class MovimentacaoManager {
         const formattedDate = this.formatDate(dateString);
         const formattedTime = this.formatTime(timeString);
         
-        if (formattedDate === 'N/A') {
-            // Se não há data, usar data atual
-            const agora = new Date();
-            const dataAtual = agora.toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-            const horaAtual = agora.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            return `${dataAtual} ${horaAtual}`;
-        }
-        
+        // O formatDate agora sempre retorna uma data válida (atual como fallback)
+        // então não precisamos verificar se é 'N/A'
         return `${formattedDate} ${formattedTime}`;
     }
 

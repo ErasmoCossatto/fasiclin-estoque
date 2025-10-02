@@ -46,9 +46,6 @@
                     <button class="btn" onclick="loadMovements()">
                         <span>🔄</span> Atualizar
                     </button>
-                    <button class="btn btn-secondary" onclick="testLoadMovements()">
-                        <span>🧪</span> Teste Debug
-                    </button>
                 </div>
             </div>
 
@@ -246,28 +243,11 @@
         function loadMovements() {
             console.log('[DEBUG] Botão Atualizar clicado');
             if (window.movimentacaoManager) {
-                window.movimentacaoManager.loadMovimentacoes().then(() => {
-                    window.movimentacaoManager.renderMovimentacoes();
-                });
-            }
-        }
-        
-        // Função de teste para debug
-        function testLoadMovements() {
-            console.log('[DEBUG] Botão Teste Debug clicado');
-            console.log('[DEBUG] movimentacaoManager disponível:', !!window.movimentacaoManager);
-            
-            if (window.movimentacaoManager) {
-                console.log('[DEBUG] Movimentações atuais:', window.movimentacaoManager.movimentacoes);
-                console.log('[DEBUG] Forçando dados mockados...');
-                
-                // Forçar dados mockados para teste
-                window.movimentacaoManager.movimentacoes = window.movimentacaoManager.getMockedMovimentacoes();
-                window.movimentacaoManager.renderMovimentacoes();
-                
-                alert(`Debug: ${window.movimentacaoManager.movimentacoes.length} movimentações carregadas (mockadas para teste)`);
+                console.log('[DEBUG] Forçando recarga completa de dados...');
+                window.movimentacaoManager.loadData();
             } else {
-                alert('Debug: movimentacaoManager não está disponível!');
+                console.error('[DEBUG] movimentacaoManager não disponível!');
+                alert('Sistema não inicializado. Recarregue a página.');
             }
         }
         
