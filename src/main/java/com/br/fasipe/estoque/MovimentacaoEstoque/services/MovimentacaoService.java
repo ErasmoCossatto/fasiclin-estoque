@@ -202,24 +202,15 @@ public class MovimentacaoService {
                 throw new IllegalStateException("Produto não pode ser movimentado pois não possui almoxarifado associado");
             }
             
-            // 4. Verificar e obter estoque de origem
-            Estoque estoqueOrigem = buscarEstoqueNoSetor(produto, setorOrigem);
+                        // 5. Verificar e obter estoque (central)
+            Estoque estoque = buscarEstoqueNoSetor(produto, setorOrigem);
             
-            // 5. Validar se há quantidade suficiente (impedir movimentação se estoque zerado)
-            if (estoqueOrigem.getQuantidadeEstoque() <= 0) {
-                throw new IllegalStateException("Não é possível movimentar produto com estoque zerado no setor de origem");
-            }
-            validarQuantidadeDisponivel(estoqueOrigem, dto.getQuantidade());
+            // 6. Validar se há quantidade suficiente
+            validarQuantidadeDisponivel(estoque, dto.getQuantidade());
             
-            // 6. Buscar ou criar estoque de destino
-            Estoque estoqueDestino = buscarOuCriarEstoqueNoSetor(produto, setorDestino);
-            
-            // 7. Executar a movimentação (atômica) - diminui origem e aumenta destino
-            executarMovimentacaoAtômica(estoqueOrigem, estoqueDestino, dto.getQuantidade());
-            
-            // 8. Registrar a movimentação
+            // 7. Registrar a movimentação (sem alterar estoque físico por ora)
             Movimentacao movimentacao = criarRegistroMovimentacao(
-                produto, setorOrigem, setorDestino, usuario, dto.getQuantidade(), estoqueOrigem);
+                produto, setorOrigem, setorDestino, usuario, dto.getQuantidade(), estoque);
             
             Movimentacao movimentacaoSalva = movimentacaoRepository.save(movimentacao);
             
@@ -254,8 +245,15 @@ public class MovimentacaoService {
     
     private Usuario buscarUsuario(Integer idUsuario) {
         if (idUsuario == null) {
-            log.info("ID do usuário é nulo, retornando null para teste");
-            return null;
+            // TEMPORÁRIO: Para testes, buscar qualquer usuário do banco
+            log.info("ID do usuário é nulo, buscando automaticamente um usuário para teste");
+            List<Usuario> usuarios = usuarioRepository.findAll();
+            if (usuarios.isEmpty()) {
+                throw new IllegalStateException("Nenhum usuário encontrado no banco de dados para teste");
+            }
+            Usuario usuarioTeste = usuarios.get(0);
+            log.info("Usuário de teste selecionado: ID {}, Login: {}", usuarioTeste.getId(), usuarioTeste.getLogin());
+            return usuarioTeste;
         }
         
         Optional<Usuario> usuario = usuarioRepository.findById(idUsuario);
@@ -268,60 +266,32 @@ public class MovimentacaoService {
     }
     
     private Estoque buscarEstoqueNoSetor(Produto produto, Setor setor) {
-        // Aqui assumimos que existe uma relação entre Estoque e Setor
-        // Como não vemos essa relação direta no modelo Estoque atual, 
-        // vamos buscar estoques do produto e verificar se há algum disponível
-        // Esta lógica pode precisar ser ajustada baseada na estrutura real do banco
-        
+        // Buscar estoques disponíveis para o produto
         List<Estoque> estoquesDisponiveis = estoqueRepository.findByIdProduto(produto.getId());
         
         if (estoquesDisponiveis.isEmpty()) {
-            throw new IllegalStateException("Não há estoque disponível para o produto no setor de origem");
+            throw new IllegalStateException("Produto não possui estoque cadastrado: " + produto.getNome());
         }
         
-        // Por simplicidade, retornamos o primeiro estoque disponível
-        // Em um cenário real, você teria que implementar a lógica para associar estoque com setor
-        return estoquesDisponiveis.get(0);
+        // Por ora, retorna o primeiro estoque encontrado (simplificação)
+        // TODO: Implementar lógica de associação estoque-setor quando necessário
+        Estoque estoque = estoquesDisponiveis.get(0);
+        
+        log.info("Estoque encontrado para produto {} no setor {}: Estoque ID={}, Quantidade={}", 
+                produto.getId(), setor.getId(), estoque.getId(), estoque.getQuantidadeEstoque());
+        
+        return estoque;
     }
     
     private void validarQuantidadeDisponivel(Estoque estoque, Integer quantidadeRequerida) {
         if (estoque.getQuantidadeEstoque() < quantidadeRequerida) {
             throw new IllegalStateException(String.format(
-                "Estoque insuficiente. Disponível: %d, Requerido: %d. Não é possível realizar movimentação quando o estoque está zerado ou insuficiente.", 
+                "Estoque insuficiente. Disponível: %d, Requerido: %d", 
                 estoque.getQuantidadeEstoque(), quantidadeRequerida));
         }
-    }
-    
-    private Estoque buscarOuCriarEstoqueNoSetor(Produto produto, Setor setorDestino) {
-        // Buscar estoque existente para o produto no setor destino
-        List<Estoque> estoquesDestino = estoqueRepository.findByIdProduto(produto.getId());
         
-        if (!estoquesDestino.isEmpty()) {
-            // Se existe estoque, usa o primeiro (ajustar lógica conforme necessário)
-            return estoquesDestino.get(0);
-        }
-        
-        // Se não existe, precisaríamos criar um novo estoque
-        // Porém, o modelo Estoque requer um Lote, que não temos neste contexto
-        // Esta lógica precisa ser ajustada baseada nos requisitos reais
-        throw new IllegalStateException("Não foi possível localizar ou criar estoque no setor destino. " +
-                "Necessário ajustar lógica para criação de estoque sem lote.");
-    }
-    
-    private void executarMovimentacaoAtômica(Estoque estoqueOrigem, Estoque estoqueDestino, Integer quantidade) {
-        // Subtrai do estoque origem
-        int novaQuantidadeOrigem = estoqueOrigem.getQuantidadeEstoque() - quantidade;
-        estoqueOrigem.setQuantidadeEstoque(novaQuantidadeOrigem);
-        estoqueRepository.save(estoqueOrigem);
-        
-        // Adiciona ao estoque destino
-        int novaQuantidadeDestino = estoqueDestino.getQuantidadeEstoque() + quantidade;
-        estoqueDestino.setQuantidadeEstoque(novaQuantidadeDestino);
-        estoqueRepository.save(estoqueDestino);
-        
-        log.info("Movimentação executada: Origem {} -> {}, Destino {} -> {}", 
-                estoqueOrigem.getQuantidadeEstoque() + quantidade, novaQuantidadeOrigem,
-                estoqueDestino.getQuantidadeEstoque() - quantidade, novaQuantidadeDestino);
+        log.info("Validação de quantidade OK - Disponível: {}, Requerido: {}", 
+                estoque.getQuantidadeEstoque(), quantidadeRequerida);
     }
     
     private Movimentacao criarRegistroMovimentacao(Produto produto, Setor setorOrigem, Setor setorDestino, 

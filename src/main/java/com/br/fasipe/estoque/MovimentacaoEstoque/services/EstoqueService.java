@@ -295,38 +295,30 @@ public class EstoqueService extends BaseService {
         try {
             log.info("Buscando estoque agrupado por setor para painel de movimentação");
             
-            // Buscar todos os estoques
+            // Buscar apenas estoques de produtos COM almoxarifado (ID_ALMOX NOT NULL)
             List<Estoque> estoques = estoqueRepository.findAll();
             List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
             
-            // Distribuir estoques pelos setores de forma simples para demonstração
-            // Em um cenário real, seria necessário ter relacionamento direto entre Estoque e Setor
-            int contador = 1;
-            
             for (Estoque estoque : estoques) {
-                if (estoque.getProduto() != null && estoque.getQuantidadeEstoque() > 0) {
-                    // Forçar carregamento das relações lazy
+                // FILTRO: Só incluir produtos que:
+                // 1. Tenham produto associado
+                // 2. Tenham quantidade > 0
+                // 3. Tenham almoxarifado definido (ID_ALMOX NOT NULL)
+                if (estoque.getProduto() != null && 
+                    estoque.getQuantidadeEstoque() > 0 &&
+                    estoque.getProduto().getAlmoxarifado() != null) {
+                    
                     String nomeProduto = estoque.getProduto().getNome();
                     String descricaoProduto = estoque.getProduto().getDescricao();
                     
-                    // Determinar setor baseado no ID do estoque ou produto para distribuição
-                    String nomeSetor;
-                    int setorId;
-                    int resto = contador % 3;
+                    // Usar nome do almoxarifado como setor
+                    String nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
+                    int setorId = estoque.getProduto().getAlmoxarifado().getId();
                     
-                    switch (resto) {
-                        case 1:
-                            nomeSetor = "Compras";
-                            setorId = 1;
-                            break;
-                        case 2:
-                            nomeSetor = "Teste";
-                            setorId = 2;
-                            break;
-                        default:
-                            nomeSetor = "Estoque";
-                            setorId = 3;
-                            break;
+                    // Se o almoxarifado tem setor definido, usar o nome do setor
+                    if (estoque.getProduto().getAlmoxarifado().getSetor() != null) {
+                        nomeSetor = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
+                        setorId = estoque.getProduto().getAlmoxarifado().getSetor().getId();
                     }
                     
                     java.util.Map<String, Object> itemEstoque = new java.util.HashMap<>();
@@ -334,7 +326,7 @@ public class EstoqueService extends BaseService {
                     itemEstoque.put("produto", java.util.Map.of(
                         "id", estoque.getProduto().getId(),
                         "nome", nomeProduto,
-                        "descricao", descricaoProduto
+                        "descricao", descricaoProduto != null ? descricaoProduto : ""
                     ));
                     itemEstoque.put("quantidadeEstoque", estoque.getQuantidadeEstoque());
                     itemEstoque.put("setor", java.util.Map.of(
@@ -343,16 +335,14 @@ public class EstoqueService extends BaseService {
                     ));
                     
                     resultado.add(itemEstoque);
-                    contador++;
                 }
             }
             
-            log.info("Retornando {} registros de estoque por setor (dados reais)", resultado.size());
+            log.info("Retornando {} registros de estoque por setor (apenas produtos com almoxarifado)", resultado.size());
             return resultado;
             
         } catch (Exception e) {
             log.error("Erro ao buscar estoque por setor: {}", e.getMessage(), e);
-            // Retornar lista vazia em caso de erro ao invés de dados mockados
             return new java.util.ArrayList<>();
         }
     }

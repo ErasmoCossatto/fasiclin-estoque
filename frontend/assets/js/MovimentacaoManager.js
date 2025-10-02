@@ -990,8 +990,18 @@ class MovimentacaoManager {
         // Limpa as opções atuais
         select.innerHTML = '<option value="">Selecione um produto...</option>';
         
-        // Adiciona os produtos
-        produtos.forEach(produto => {
+        // FILTRAR: Mostrar apenas produtos que podem ser movimentados (têm almoxarifado)
+        const produtosMovimentaveis = produtos.filter(produto => produto.podeMovimentar);
+        
+        console.log(`[PRODUTOS] Filtrados ${produtosMovimentaveis.length} produtos movimentáveis de ${produtos.length} total`);
+        
+        if (produtosMovimentaveis.length === 0) {
+            select.innerHTML += '<option value="" disabled>Nenhum produto movimentável encontrado</option>';
+            return;
+        }
+        
+        // Adiciona apenas os produtos que podem ser movimentados
+        produtosMovimentaveis.forEach(produto => {
             const option = document.createElement('option');
             option.value = produto.id;
             option.dataset.produto = JSON.stringify(produto);
@@ -1002,18 +1012,18 @@ class MovimentacaoManager {
                 textoOpcao += ` (Max: ${produto.stqMax})`;
             }
             
-            // Indica se não pode ser movimentado
-            if (!produto.podeMovimentar) {
-                textoOpcao += ' - ⚠️ Sem almoxarifado';
-                option.style.color = '#ff6b6b';
-                option.style.fontStyle = 'italic';
+            // Mostrar almoxarifado associado
+            if (produto.almoxarifado && produto.almoxarifado !== 'Sem almoxarifado') {
+                textoOpcao += ` [${produto.almoxarifado}]`;
             }
             
             option.textContent = textoOpcao;
             select.appendChild(option);
+            
+            console.log(`[PRODUTOS] Adicionado: ${produto.nome} (ID: ${produto.id}) - Almoxarifado: ${produto.almoxarifado}`);
         });
-
-        console.log(`[PRODUTOS] Select populado com ${produtos.length} produtos`);
+        
+        console.log(`[PRODUTOS] ✅ Select populado com ${produtosMovimentaveis.length} produtos movimentáveis`);
     }
 
     /**
@@ -1344,12 +1354,19 @@ class MovimentacaoManager {
     }
 
     /**
-     * Agrupa estoque por setor
+     * Agrupa estoque por setor evitando duplicatas
      */
     groupStockBySetor(estoques) {
         const grouped = {};
+        const produtosJaAdicionados = new Set(); // Evita duplicatas por produto
         
         estoques.forEach(estoque => {
+            if (!estoque.produto || !estoque.produto.id) {
+                return; // Pula estoques sem produto válido
+            }
+            
+            // Chave única para evitar duplicatas: setor + produto
+            const produtoId = estoque.produto.id;
             let setor = 'Sem Setor';
             
             // Usar o nome do setor do objeto setor (novo formato)
@@ -1361,11 +1378,29 @@ class MovimentacaoManager {
                 setor = `Almoxarifado ${estoque.produto.idAlmoxarifado}`;
             }
             
+            // Chave única para produto no setor
+            const chaveUnica = `${setor}-${produtoId}`;
+            
+            // Se já foi adicionado, pula
+            if (produtosJaAdicionados.has(chaveUnica)) {
+                console.log(`[ESTOQUE] Produto ${estoque.produto.nome} já existe no setor ${setor}, pulando duplicata`);
+                return;
+            }
+            
             if (!grouped[setor]) {
                 grouped[setor] = [];
             }
             
             grouped[setor].push(estoque);
+            produtosJaAdicionados.add(chaveUnica);
+        });
+        
+        // Filtrar setores vazios ou inválidos
+        const setoresValidos = {};
+        Object.keys(grouped).forEach(setorNome => {
+            if (setorNome !== 'Sem Setor' && grouped[setorNome].length > 0) {
+                setoresValidos[setorNome] = grouped[setorNome];
+            }
         });
         
         // Garantir que os setores apareçam numa ordem lógica (apenas os que realmente existem)
@@ -1374,18 +1409,19 @@ class MovimentacaoManager {
         
         // Primeiro adiciona os setores na ordem preferida se existirem
         ordemPreferida.forEach(setorNome => {
-            if (grouped[setorNome]) {
-                sortedGrouped[setorNome] = grouped[setorNome];
+            if (setoresValidos[setorNome]) {
+                sortedGrouped[setorNome] = setoresValidos[setorNome];
             }
         });
         
         // Depois adiciona os outros setores não incluídos na ordem preferida
-        Object.keys(grouped).forEach(setorNome => {
+        Object.keys(setoresValidos).forEach(setorNome => {
             if (!ordemPreferida.includes(setorNome)) {
-                sortedGrouped[setorNome] = grouped[setorNome];
+                sortedGrouped[setorNome] = setoresValidos[setorNome];
             }
         });
         
+        console.log(`[ESTOQUE] Agrupamento concluído: ${Object.keys(sortedGrouped).length} setores válidos`);
         return sortedGrouped;
     }
 

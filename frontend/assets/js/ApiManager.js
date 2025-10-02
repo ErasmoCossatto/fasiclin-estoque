@@ -202,12 +202,12 @@ class ApiManager {
                 console.log(`[ESTOQUE] ✅ Sucesso na API - Retornando dados:`, result.data);
                 return result.data;
             } else {
-                console.warn('[ESTOQUE] Resposta não possui success=true ou data, usando dados mockados');
-                return this.getMockedEstoques();
+                console.warn('[ESTOQUE] Resposta não possui success=true ou data, retornando lista vazia');
+                return { content: [], totalElements: 0 };
             }
         } catch (error) {
-            console.warn(`[ESTOQUE] ❌ Erro: ${error.message}, usando dados mockados`);
-            return this.getMockedEstoques();
+            console.error(`[ESTOQUE] ❌ Erro: ${error.message}, retornando lista vazia`);
+            return { content: [], totalElements: 0 };
         }
     }
 
@@ -238,82 +238,7 @@ class ApiManager {
         };
     }
 
-    /**
-     * Retorna dados mockados para estoque quando todos os endpoints falham
-     */
-    getMockedEstoques() {
-        return {
-            content: [
-                {
-                    estoqueId: 1,
-                    id: 1,
-                    quantidadeEstoque: 100,
-                    produto: { 
-                        id: 1, 
-                        nome: 'Dipirona 500mg', 
-                        descricao: 'Analgésico e antitérmico',
-                        codBarras: '7891234567890'
-                    },
-                    almoxarifado: {
-                        id: 1,
-                        nome: 'Farmácia Central',
-                        setor: { id: 1, nome: 'Farmácia' }
-                    },
-                    lote: { 
-                        id: 1, 
-                        dataVencimento: '2025-12-31',
-                        quantidade: 100
-                    }
-                },
-                {
-                    estoqueId: 2,
-                    id: 2,
-                    quantidadeEstoque: 50,
-                    produto: { 
-                        id: 2, 
-                        nome: 'Paracetamol 750mg', 
-                        descricao: 'Analgésico e antitérmico',
-                        codBarras: '7891234567891'
-                    },
-                    almoxarifado: {
-                        id: 2,
-                        nome: 'Almoxarifado UTI',
-                        setor: { id: 2, nome: 'UTI' }
-                    },
-                    lote: { 
-                        id: 2, 
-                        dataVencimento: '2026-01-15',
-                        quantidade: 50
-                    }
-                },
-                {
-                    estoqueId: 3,
-                    id: 3,
-                    quantidadeEstoque: 25,
-                    produto: { 
-                        id: 3, 
-                        nome: 'Ibuprofeno 600mg', 
-                        descricao: 'Anti-inflamatório',
-                        codBarras: '7891234567892'
-                    },
-                    almoxarifado: {
-                        id: 3,
-                        nome: 'Enfermaria Geral',
-                        setor: { id: 3, nome: 'Enfermaria' }
-                    },
-                    lote: { 
-                        id: 3, 
-                        dataVencimento: '2025-11-30',
-                        quantidade: 25
-                    }
-                }
-            ],
-            totalElements: 3,
-            totalPages: 1,
-            number: 0,
-            size: 3
-        };
-    }
+    // Métodos de dados mockados removidos - sistema deve usar apenas dados reais da API
 
     /**
      * Busca estoque por ID
@@ -343,12 +268,12 @@ class ApiManager {
                 console.log(`[PRODUTOS] ✅ Sucesso na API - Retornando dados:`, result.data);
                 return result.data;
             } else {
-                console.warn('[PRODUTOS] Resposta não possui success=true ou data, usando dados mockados');
-                return this.getMockedProdutos();
+                console.warn('[PRODUTOS] Resposta não possui success=true ou data, retornando lista vazia');
+                return { content: [], totalElements: 0 };
             }
         } catch (error) {
-            console.warn(`[PRODUTOS] ❌ Erro: ${error.message}, usando dados mockados`);
-            return this.getMockedProdutos();
+            console.error(`[PRODUTOS] ❌ Erro: ${error.message}, retornando lista vazia`);
+            return { content: [], totalElements: 0 };
         }
     }
 
@@ -393,43 +318,7 @@ class ApiManager {
         }
     }
 
-    /**
-     * Retorna dados mockados para produtos
-     */
-    getMockedProdutos() {
-        return {
-            content: [
-                {
-                    idProduto: 1,
-                    id: 1,
-                    nome: 'Esparadrapo',
-                    descricao: 'Esparadrapo tecido branco 10cm x 4,5m',
-                    stqMax: 1000,
-                    stqMin: 200
-                },
-                {
-                    idProduto: 2,
-                    id: 2,
-                    nome: 'Termômetro Digital',
-                    descricao: 'Termômetro digital com medição rápida e precisa da temperatura',
-                    stqMax: 50,
-                    stqMin: 5
-                },
-                {
-                    idProduto: 5,
-                    id: 5,
-                    nome: 'Esparadrapo',
-                    descricao: 'Esparadrapo resistente à água, indicado para curativos',
-                    stqMax: 75,
-                    stqMin: 15
-                }
-            ],
-            totalElements: 3,
-            totalPages: 1,
-            number: 0,
-            size: 3
-        };
-    }
+    // Métodos de produtos mockados removidos
 
     /**
      * Busca produto por ID
@@ -619,12 +508,12 @@ class ApiManager {
                 console.log(`[USUARIOS] ✅ Sucesso: ${usuarios.length} usuários`);
                 return usuarios.map(user => this.normalizeUsuarioItem(user));
             } else {
-                console.warn('[USUARIOS] Resposta vazia ou erro, usando dados mockados');
-                return this.getMockedUsuarios();
+                console.warn('[USUARIOS] Resposta vazia ou erro, retornando lista vazia');
+                return [];
             }
         } catch (error) {
-            console.warn(`[USUARIOS] ❌ Erro: ${error.message}, usando dados mockados`);
-            return this.getMockedUsuarios();
+            console.error(`[USUARIOS] ❌ Erro: ${error.message}, retornando lista vazia`);
+            return [];
         }
     }
 
@@ -640,17 +529,7 @@ class ApiManager {
         };
     }
 
-    /**
-     * Retorna dados mockados para usuários
-     */
-    getMockedUsuarios() {
-        return [
-            { id: 1, login: 'admin', nome: 'Administrador do Sistema', ativo: true },
-            { id: 2, login: 'farmaceutico', nome: 'João Silva - Farmacêutico', ativo: true },
-            { id: 3, login: 'enfermeiro', nome: 'Maria Santos - Enfermeira', ativo: true },
-            { id: 4, login: 'almoxarife', nome: 'Pedro Costa - Almoxarife', ativo: true }
-        ];
-    }
+    // Métodos de usuários mockados removidos
 
     // ===== ENDPOINTS DE SETORES =====
 
@@ -669,12 +548,12 @@ class ApiManager {
                 console.log(`[SETORES] ✅ Sucesso: ${setores.length} setores`);
                 return setores.map(setor => this.normalizeSetorItem(setor));
             } else {
-                console.warn('[SETORES] Resposta vazia ou erro, usando dados mockados');
-                return this.getMockedSetores();
+                console.warn('[SETORES] Resposta vazia ou erro, retornando lista vazia');
+                return [];
             }
         } catch (error) {
-            console.warn(`[SETORES] ❌ Erro: ${error.message}, usando dados mockados`);
-            return this.getMockedSetores();
+            console.error(`[SETORES] ❌ Erro: ${error.message}, retornando lista vazia`);
+            return [];
         }
     }
 
@@ -689,16 +568,7 @@ class ApiManager {
         };
     }
 
-    /**
-     * Retorna dados mockados para setores
-     */
-    getMockedSetores() {
-        return [
-            { id: 1, nome: 'Compras', ativo: true },
-            { id: 2, nome: 'Teste', ativo: true },
-            { id: 3, nome: 'Estoque', ativo: true }
-        ];
-    }
+    // Métodos de setores mockados removidos
 
     // ===== ENDPOINTS DE INICIALIZAÇÃO =====
 
