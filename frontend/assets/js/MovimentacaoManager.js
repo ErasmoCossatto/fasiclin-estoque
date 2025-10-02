@@ -718,7 +718,7 @@ class MovimentacaoManager {
         const dateInput = document.getElementById('date');
         if (dateInput) {
             const today = new Date();
-            const todayStr = today.toISOString().split('T')[0];
+            const todayStr = this.formatLocalDateForBackend(today);
             
             // Sempre definir como hoje (campo hidden)
             dateInput.value = todayStr;
@@ -783,7 +783,7 @@ class MovimentacaoManager {
             const dateInput = document.getElementById('dataMovimentacao');
             if (dateInput) {
                 const date = new Date(movimentacao.dataMovimentacao);
-                dateInput.value = date.toISOString().split('T')[0];
+                dateInput.value = this.formatLocalDateForBackend(date);
             }
         }
     }
@@ -868,9 +868,9 @@ class MovimentacaoManager {
         const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
         const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
         
-        // Garantir que sempre usa a data e hora atuais (formato brasileiro)
+        // Garantir que sempre usa a data e hora atuais (respeitando fuso horário local)
         const agora = new Date();
-        const dataAtual = agora.toISOString().split('T')[0]; // YYYY-MM-DD para o backend
+        const dataAtual = this.formatLocalDateForBackend(agora); // YYYY-MM-DD para o backend
         
         console.log('[MovimentacaoManager] Coletando dados do formulário:', {
             estoqueId,
@@ -1045,7 +1045,7 @@ class MovimentacaoManager {
      */
     getMockedMovimentacoes() {
         const agora = new Date();
-        const hoje = agora.toISOString().split('T')[0];
+        const hoje = this.formatLocalDateForBackend(agora);
         const horaAtual = agora.toTimeString().split(' ')[0];
         
         return [
@@ -1804,6 +1804,16 @@ class MovimentacaoManager {
         // O formatDate agora sempre retorna uma data válida (atual como fallback)
         // então não precisamos verificar se é 'N/A'
         return `${formattedDate} ${formattedTime}`;
+    }
+
+    /**
+     * Formata data local para formato YYYY-MM-DD (evita problemas de UTC)
+     */
+    formatLocalDateForBackend(date = new Date()) {
+        const ano = date.getFullYear();
+        const mes = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() retorna 0-11
+        const dia = String(date.getDate()).padStart(2, '0');
+        return `${ano}-${mes}-${dia}`;
     }
 
     getTipoIcon(tipo) {
