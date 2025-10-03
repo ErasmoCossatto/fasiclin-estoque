@@ -9,6 +9,7 @@ import com.br.fasipe.estoque.MovimentacaoEstoque.models.Estoque;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Usuario;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Setor;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Produto;
+import com.br.fasipe.estoque.MovimentacaoEstoque.models.Lote;
 import com.br.fasipe.estoque.MovimentacaoEstoque.repository.MovimentacaoRepository;
 import com.br.fasipe.estoque.MovimentacaoEstoque.repository.EstoqueRepository;
 import com.br.fasipe.estoque.MovimentacaoEstoque.repository.UsuarioRepository;
@@ -23,6 +24,8 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 @Slf4j
 @Service
@@ -124,17 +127,13 @@ public class MovimentacaoService {
      * Atualiza as quantidades dos estoques com base na movimentação
      * - ENTRADA: incrementa a quantidade no estoque
      * - SAIDA: decrementa a quantidade no estoque
-     * 
-     * Para movimentações entre setores, apenas registra a movimentação
-     * sem alterar estoque (simplificação para funcionar com modelo atual)
+     * - MOVIMENTAÇÃO ENTRE SETORES: debita do setor origem e credita no setor destino
      */
     private void atualizarQuantidadesEstoque(Movimentacao movimentacao) {
-        Estoque estoqueAtual = movimentacao.getEstoque();
-        Integer quantidade = movimentacao.getQuantidade();
         TipoMovimentacao tipo = movimentacao.getTipoMovimentacao();
+        Integer quantidade = movimentacao.getQuantidade();
         
-        log.info("Processando movimentação - ID: {}, Tipo: {}, Quantidade: {}, Estoque Atual: {}", 
-                estoqueAtual.getId(), tipo, quantidade, estoqueAtual.getQuantidadeEstoque());
+        log.info("Processando movimentação - Tipo: {}, Quantidade: {}", tipo, quantidade);
         
         // Verificar se é movimentação entre setores (origem e destino diferentes)
         boolean isMovimentacaoEntreSetores = movimentacao.getSetorOrigem() != null && 
@@ -142,12 +141,76 @@ public class MovimentacaoService {
                                            !movimentacao.getSetorOrigem().getId().equals(movimentacao.getSetorDestino().getId());
         
         if (isMovimentacaoEntreSetores) {
-            // Para movimentações entre setores, registramos apenas o histórico
-            // A lógica de controle por setor seria implementada em versão futura
-            log.info("Movimentação entre setores registrada - Origem: {} -> Destino: {}", 
-                    movimentacao.getSetorOrigem().getNome(), movimentacao.getSetorDestino().getNome());
-            return;
+            // NOVA LÓGICA: Movimentação entre setores com controle específico
+            processarMovimentacaoEntreSetores(movimentacao);
+        } else {
+            // Movimentação simples (entrada/saída no mesmo setor)
+            processarMovimentacaoSimples(movimentacao, tipo, quantidade);
         }
+    }
+    
+    /**
+     * NOVA IMPLEMENTAÇÃO: Processa movimentação entre setores diferentes
+     * Debita do setor origem e credita no setor destino atomicamente
+     * REGRA DE NEGÓCIO: Exige que o produto já exista no setor de origem
+     */
+    @Transactional
+    private void processarMovimentacaoEntreSetores(Movimentacao movimentacao) {
+        Integer idProduto = movimentacao.getEstoque().getProduto().getId();
+        Integer idSetorOrigem = movimentacao.getSetorOrigem().getId();
+        Integer idSetorDestino = movimentacao.getSetorDestino().getId();
+        Integer quantidade = movimentacao.getQuantidade();
+        
+        log.info("Processando movimentação entre setores - Produto: {}, Origem: {}, Destino: {}, Quantidade: {}", 
+                idProduto, idSetorOrigem, idSetorDestino, quantidade);
+        
+        try {
+            // 1. VALIDAR E DEBITAR do setor de origem (OBRIGATÓRIO existir)
+            Estoque estoqueOrigem = buscarOuCriarEstoqueNoSetor(idProduto, idSetorOrigem, false);
+            
+            if (estoqueOrigem.getQuantidadeEstoque() < quantidade) {
+                throw new IllegalStateException(String.format(
+                    "Quantidade insuficiente no setor de origem '%s'. Disponível: %d, Solicitado: %d", 
+                    movimentacao.getSetorOrigem().getNome(), estoqueOrigem.getQuantidadeEstoque(), quantidade));
+            }
+            
+            int novaQuantidadeOrigem = estoqueOrigem.getQuantidadeEstoque() - quantidade;
+            estoqueOrigem.setQuantidadeEstoque(novaQuantidadeOrigem);
+            estoqueRepository.save(estoqueOrigem);
+            
+            log.info("DÉBITO realizado - Setor Origem: '{}' | Produto: {} | Quantidade anterior: {} | Nova quantidade: {}", 
+                    movimentacao.getSetorOrigem().getNome(), idProduto, estoqueOrigem.getQuantidadeEstoque() + quantidade, novaQuantidadeOrigem);
+            
+            // 2. VALIDAR E CREDITAR no setor de destino (pode criar se não existir)
+            Estoque estoqueDestino = buscarOuCriarEstoqueNoSetor(idProduto, idSetorDestino, true);
+            
+            int novaQuantidadeDestino = estoqueDestino.getQuantidadeEstoque() + quantidade;
+            estoqueDestino.setQuantidadeEstoque(novaQuantidadeDestino);
+            estoqueRepository.save(estoqueDestino);
+            
+            log.info("CRÉDITO realizado - Setor Destino: '{}' | Produto: {} | Quantidade anterior: {} | Nova quantidade: {}", 
+                    movimentacao.getSetorDestino().getNome(), idProduto, estoqueDestino.getQuantidadeEstoque() - quantidade, novaQuantidadeDestino);
+            
+            // 3. Atualizar a referência na movimentação (usar o estoque de origem para registro)
+            movimentacao.setEstoque(estoqueOrigem);
+            
+            log.info("Movimentação entre setores concluída com sucesso! {} → {}", 
+                    movimentacao.getSetorOrigem().getNome(), movimentacao.getSetorDestino().getNome());
+            
+        } catch (Exception e) {
+            log.error("Erro na movimentação entre setores: {}", e.getMessage(), e);
+            throw new RuntimeException("Falha na movimentação entre setores: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Processa movimentação simples (entrada/saída no mesmo setor)
+     */
+    private void processarMovimentacaoSimples(Movimentacao movimentacao, TipoMovimentacao tipo, Integer quantidade) {
+        Estoque estoqueAtual = movimentacao.getEstoque();
+        
+        log.info("Processando movimentação simples - ID: {}, Tipo: {}, Quantidade: {}, Estoque Atual: {}", 
+                estoqueAtual.getId(), tipo, quantidade, estoqueAtual.getQuantidadeEstoque());
         
         if (tipo == TipoMovimentacao.ENTRADA) {
             // ENTRADA: Adiciona ao estoque
@@ -176,6 +239,90 @@ public class MovimentacaoService {
         
         // Atualizar a referência na movimentação
         movimentacao.setEstoque(estoqueAtual);
+    }
+    
+    /**
+     * IMPLEMENTAÇÃO AJUSTADA: Busca estoque específico no setor
+     * Para setores existentes (Teste, Compras, Estoque), não cria automaticamente
+     * @param idProduto ID do produto
+     * @param idSetor ID do setor
+     * @param permitirCriacao Se true, permite criar estoque (apenas para casos específicos)
+     * @return Estoque encontrado
+     */
+    private Estoque buscarOuCriarEstoqueNoSetor(Integer idProduto, Integer idSetor, boolean permitirCriacao) {
+        // Buscar estoque específico do produto no setor
+        List<Estoque> estoquesNoSetor = estoqueRepository.findByProdutoAndSetor(idProduto, idSetor);
+        
+        if (!estoquesNoSetor.isEmpty()) {
+            // Estoque encontrado - retorna o primeiro (poderia ser otimizado para escolher o melhor lote)
+            Estoque estoque = estoquesNoSetor.get(0);
+            log.info("Estoque encontrado - Setor: {}, Produto: {}, Estoque ID: {}, Quantidade: {}", 
+                    idSetor, idProduto, estoque.getId(), estoque.getQuantidadeEstoque());
+            return estoque;
+        }
+        
+        // NOVA LÓGICA: Para setores destino, tentar criar com quantidade zero
+        // Para setores origem, sempre falhar se não existir
+        if (!permitirCriacao) {
+            throw new IllegalStateException(String.format(
+                "Produto ID %d não possui estoque no setor ID %d. " +
+                "Para movimentar produtos, o estoque deve estar previamente cadastrado no setor de origem.", 
+                idProduto, idSetor));
+        }
+        
+        // Para o setor DESTINO: criar estoque com quantidade zero (recebedor)
+        log.info("Produto não existe no setor de destino. Criando estoque com quantidade zero - Produto: {} no Setor: {}", idProduto, idSetor);
+        return criarEstoqueZeroNoSetor(idProduto, idSetor);
+    }
+    
+    /**
+     * IMPLEMENTAÇÃO MELHORADA: Cria estoque com quantidade zero no setor de destino
+     * Usado apenas quando um produto vai pela primeira vez para um setor
+     */
+    private Estoque criarEstoqueZeroNoSetor(Integer idProduto, Integer idSetor) {
+        try {
+            // Buscar o produto
+            Produto produto = produtoRepository.findById(idProduto)
+                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado: " + idProduto));
+            
+            // Verificar se o produto pertence ao setor através do almoxarifado
+            if (produto.getAlmoxarifado() == null || 
+                !produto.getAlmoxarifado().getSetor().getId().equals(idSetor)) {
+                
+                // Buscar um estoque existente do produto para usar o mesmo lote
+                List<Estoque> estoquesExistentes = estoqueRepository.findByIdProduto(idProduto);
+                
+                if (estoquesExistentes.isEmpty()) {
+                    throw new IllegalStateException(String.format(
+                        "Produto ID %d não possui nenhum estoque cadastrado no sistema. " +
+                        "Cadastre o produto em pelo menos um setor antes de movimentar.", idProduto));
+                }
+                
+                // Usar o lote do primeiro estoque existente
+                Lote loteExistente = estoquesExistentes.get(0).getLote();
+                
+                // Criar novo estoque com quantidade zero no setor de destino
+                Estoque novoEstoque = new Estoque();
+                novoEstoque.setProduto(produto);
+                novoEstoque.setLote(loteExistente);
+                novoEstoque.setQuantidadeEstoque(0);
+                
+                Estoque estoqueSalvo = estoqueRepository.save(novoEstoque);
+                
+                log.info("Estoque criado no setor de destino - ID: {}, Produto: {}, Setor: {}, Quantidade inicial: 0", 
+                        estoqueSalvo.getId(), idProduto, idSetor);
+                
+                return estoqueSalvo;
+            }
+            
+            // Se chegou aqui, o produto já deveria ter estoque no setor
+            throw new IllegalStateException(String.format(
+                "Produto ID %d deveria ter estoque no setor ID %d mas não foi encontrado", idProduto, idSetor));
+            
+        } catch (Exception e) {
+            log.error("Erro ao criar estoque no setor de destino - Produto {} no Setor {}: {}", idProduto, idSetor, e.getMessage(), e);
+            throw new RuntimeException("Falha ao preparar setor de destino: " + e.getMessage(), e);
+        }
     }
     
     /**
@@ -266,16 +413,17 @@ public class MovimentacaoService {
     }
     
     private Estoque buscarEstoqueNoSetor(Produto produto, Setor setor) {
-        // Buscar estoques disponíveis para o produto
-        List<Estoque> estoquesDisponiveis = estoqueRepository.findByIdProduto(produto.getId());
+        // NOVA IMPLEMENTAÇÃO: Busca estoque específico do produto no setor
+        List<Estoque> estoquesNoSetor = estoqueRepository.findByProdutoAndSetor(produto.getId(), setor.getId());
         
-        if (estoquesDisponiveis.isEmpty()) {
-            throw new IllegalStateException("Produto não possui estoque cadastrado: " + produto.getNome());
+        if (estoquesNoSetor.isEmpty()) {
+            throw new IllegalStateException(String.format(
+                "Produto '%s' não possui estoque no setor '%s'", 
+                produto.getNome(), setor.getNome()));
         }
         
-        // Por ora, retorna o primeiro estoque encontrado (simplificação)
-        // TODO: Implementar lógica de associação estoque-setor quando necessário
-        Estoque estoque = estoquesDisponiveis.get(0);
+        // Retorna o primeiro estoque encontrado (poderia ser otimizado para escolher o melhor lote)
+        Estoque estoque = estoquesNoSetor.get(0);
         
         log.info("Estoque encontrado para produto {} no setor {}: Estoque ID={}, Quantidade={}", 
                 produto.getId(), setor.getId(), estoque.getId(), estoque.getQuantidadeEstoque());
@@ -334,19 +482,33 @@ public class MovimentacaoService {
             log.info("Não encontrou estoque com ID {}, tentando buscar como produto...", idRecebido);
             Optional<Produto> produto = produtoRepository.findById(idRecebido);
             if (produto.isPresent()) {
-                // Busca estoque que contém esse produto
-                log.info("Produto encontrado, buscando estoques para produto ID: {}", idRecebido);
-                List<Estoque> estoquesDoProduto = estoqueRepository.findByIdProduto(idRecebido);
-                log.info("Encontrados {} estoques para o produto", estoquesDoProduto.size());
-                
-                if (!estoquesDoProduto.isEmpty()) {
-                    // Usa o primeiro estoque encontrado para esse produto
-                    estoque = Optional.of(estoquesDoProduto.get(0));
-                    log.info("Usando estoque ID {} para produto ID {}", estoque.get().getId(), idRecebido);
+                // NOVA LÓGICA: Busca estoque específico do produto no setor de origem
+                if (movimentacao.getSetorOrigem() != null && movimentacao.getSetorOrigem().getId() != null) {
+                    List<Estoque> estoquesNoSetor = estoqueRepository.findByProdutoAndSetor(
+                            idRecebido, movimentacao.getSetorOrigem().getId());
+                    
+                    if (!estoquesNoSetor.isEmpty()) {
+                        estoque = Optional.of(estoquesNoSetor.get(0));
+                        log.info("Usando estoque específico do setor: Estoque ID {} para Produto ID {} no Setor ID {}", 
+                                estoque.get().getId(), idRecebido, movimentacao.getSetorOrigem().getId());
+                    } else {
+                        // Se o produto não tem estoque no setor de origem, isso é um erro
+                        throw new IllegalArgumentException(String.format(
+                                "Produto ID %d não possui estoque no setor de origem ID %d", 
+                                idRecebido, movimentacao.getSetorOrigem().getId()));
+                    }
                 } else {
-                    // Se o produto não tem estoque, vamos criar um temporário
-                    log.error("Produto {} não possui estoque cadastrado", idRecebido);
-                    throw new IllegalArgumentException("Produto não possui estoque cadastrado. Produto ID: " + idRecebido);
+                    // Fallback para busca genérica (movimentação simples)
+                    log.info("Produto encontrado, buscando estoques para produto ID: {}", idRecebido);
+                    List<Estoque> estoquesDoProduto = estoqueRepository.findByIdProduto(idRecebido);
+                    log.info("Encontrados {} estoques para o produto", estoquesDoProduto.size());
+                    
+                    if (!estoquesDoProduto.isEmpty()) {
+                        estoque = Optional.of(estoquesDoProduto.get(0));
+                        log.info("Usando estoque ID {} para produto ID {}", estoque.get().getId(), idRecebido);
+                    } else {
+                        throw new IllegalArgumentException("Produto não possui estoque cadastrado. Produto ID: " + idRecebido);
+                    }
                 }
             } else {
                 log.error("Nem estoque nem produto encontrado com ID: {}", idRecebido);
@@ -594,5 +756,60 @@ public class MovimentacaoService {
         System.out.println("Criando dados básicos...");
         // Aqui você pode adicionar lógica para criar produtos, estoques, usuários e setores
         // se eles não existirem no banco
+    }
+    
+    /**
+     * NOVO: Consulta produtos disponíveis em cada setor
+     * Útil para entender a distribuição atual do estoque
+     */
+    public Map<String, Object> consultarProdutosPorSetor() {
+        Map<String, Object> resultado = new HashMap<>();
+        
+        try {
+            // Buscar todos os setores
+            List<Setor> setores = setorRepository.findAll();
+            
+            Map<String, Object> setorInfo = new HashMap<>();
+            
+            for (Setor setor : setores) {
+                Map<String, Object> infoSetor = new HashMap<>();
+                
+                // Buscar estoques neste setor
+                List<Estoque> estoquesSetor = estoqueRepository.findBySetor(setor.getId());
+                
+                List<Map<String, Object>> produtosList = new ArrayList<>();
+                int totalProdutos = 0;
+                int quantidadeTotal = 0;
+                
+                for (Estoque estoque : estoquesSetor) {
+                    Map<String, Object> produtoInfo = new HashMap<>();
+                    produtoInfo.put("id", estoque.getProduto().getId());
+                    produtoInfo.put("nome", estoque.getProduto().getNome());
+                    produtoInfo.put("quantidade", estoque.getQuantidadeEstoque());
+                    produtoInfo.put("estoqueId", estoque.getId());
+                    
+                    produtosList.add(produtoInfo);
+                    totalProdutos++;
+                    quantidadeTotal += estoque.getQuantidadeEstoque();
+                }
+                
+                infoSetor.put("produtos", produtosList);
+                infoSetor.put("totalProdutos", totalProdutos);
+                infoSetor.put("quantidadeTotal", quantidadeTotal);
+                
+                setorInfo.put(setor.getNome(), infoSetor);
+            }
+            
+            resultado.put("setores", setorInfo);
+            resultado.put("totalSetores", setores.size());
+            
+            log.info("Consulta de produtos por setor realizada - {} setores encontrados", setores.size());
+            
+        } catch (Exception e) {
+            log.error("Erro ao consultar produtos por setor: {}", e.getMessage(), e);
+            throw e;
+        }
+        
+        return resultado;
     }
 }

@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Estoque;
+import com.br.fasipe.estoque.MovimentacaoEstoque.models.Produto;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
@@ -77,6 +78,47 @@ public interface EstoqueRepository extends JpaRepository<Estoque, Integer> {
         @QueryHint(name = "jakarta.persistence.query.timeout", value = "2000")
     })
     int updateQuantidadeEstoque(@Param("quantidadeEstoque") Integer quantidadeEstoque, @Param("id") Integer id);
+
+    // NOVO: Busca estoque específico por produto E setor (através do almoxarifado)
+    @Query("SELECT e FROM Estoque e " +
+           "WHERE e.produto.id = :idProduto " +
+           "AND e.produto.almoxarifado.setor.id = :idSetor")
+    @QueryHints({
+        @QueryHint(name = "org.hibernate.readOnly", value = "true"),
+        @QueryHint(name = "org.hibernate.fetchSize", value = "50"),
+        @QueryHint(name = "org.hibernate.cacheable", value = "true"),
+        @QueryHint(name = "jakarta.persistence.cache.storeMode", value = "USE"),
+        @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "USE"), 
+        @QueryHint(name = "jakarta.persistence.query.timeout", value = "2000")
+    })
+    List<Estoque> findByProdutoAndSetor(@Param("idProduto") Integer idProduto, @Param("idSetor") Integer idSetor);
+
+    // NOVO: Busca todos os estoques de um setor específico
+    @Query("SELECT e FROM Estoque e " +
+           "WHERE e.produto.almoxarifado.setor.id = :idSetor")
+    @QueryHints({
+        @QueryHint(name = "org.hibernate.readOnly", value = "true"),
+        @QueryHint(name = "org.hibernate.fetchSize", value = "50"),
+        @QueryHint(name = "org.hibernate.cacheable", value = "true"),
+        @QueryHint(name = "jakarta.persistence.cache.storeMode", value = "USE"),
+        @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "USE"), 
+        @QueryHint(name = "jakarta.persistence.query.timeout", value = "2000")
+    })
+    List<Estoque> findBySetor(@Param("idSetor") Integer idSetor);
+
+    // NOVO: Busca produtos disponíveis em um setor específico
+    @Query("SELECT DISTINCT e.produto FROM Estoque e " +
+           "WHERE e.produto.almoxarifado.setor.id = :idSetor " +
+           "AND e.quantidadeEstoque > 0")
+    @QueryHints({
+        @QueryHint(name = "org.hibernate.readOnly", value = "true"),
+        @QueryHint(name = "org.hibernate.fetchSize", value = "50"),
+        @QueryHint(name = "org.hibernate.cacheable", value = "true"),
+        @QueryHint(name = "jakarta.persistence.cache.storeMode", value = "USE"),
+        @QueryHint(name = "jakarta.persistence.cache.retrieveMode", value = "USE"), 
+        @QueryHint(name = "jakarta.persistence.query.timeout", value = "2000")
+    })
+    List<Produto> findProdutosDisponiveis(@Param("idSetor") Integer idSetor);
 
     
 }

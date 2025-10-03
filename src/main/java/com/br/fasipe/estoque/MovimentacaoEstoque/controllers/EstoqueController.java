@@ -264,4 +264,27 @@ public class EstoqueController {
                 .body("Erro ao buscar produtos com almoxarifado: " + e.getMessage());
         }
     }
+
+    /**
+     * Endpoint para atualização em tempo real após movimentações
+     * Força consulta direta ao banco sem cache para garantir dados atualizados
+     */
+    @GetMapping("/tempo-real")
+    public ResponseEntity<?> buscarEstoqueTempoReal() {
+        try {
+            log.info("TEMPO REAL: Buscando estoque atualizado após movimentação");
+            
+            // Força a consulta direta ao banco para garantir dados atualizados
+            var estoqueAtualizado = estoqueService.buscarEstoquePorSetorSemCache();
+            
+            log.info("TEMPO REAL: Encontrados {} registros de estoque atualizados", 
+                estoqueAtualizado != null ? estoqueAtualizado.size() : 0);
+            
+            return ResponseEntity.ok(estoqueAtualizado);
+        } catch (Exception e) {
+            log.error("TEMPO REAL: Erro ao buscar estoque atualizado: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                .body("Erro ao buscar estoque em tempo real: " + e.getMessage());
+        }
+    }
 }

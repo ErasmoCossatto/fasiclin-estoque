@@ -405,4 +405,69 @@ public class EstoqueService extends BaseService {
             throw new RuntimeException("Erro ao buscar produtos com almoxarifado", e);
         }
     }
+
+    /**
+     * Busca estoque por setor em tempo real (SEM CACHE)
+     * Força consulta direta ao banco para garantir dados atualizados após movimentações
+     * @return Lista de estoques organizados por setor com dados em tempo real
+     */
+    @CacheEvict(value = "estoques", allEntries = true) // Limpa cache antes da consulta
+    public List<java.util.Map<String, Object>> buscarEstoquePorSetorSemCache() {
+        try {
+            log.info("TEMPO REAL: Buscando estoque por setor SEM CACHE - dados atualizados");
+            
+            // Força consulta direta ao repositório
+            List<Estoque> estoques = estoqueRepository.findAll();
+            List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
+            
+            log.info("TEMPO REAL: Consultados {} registros do banco de dados", estoques.size());
+            
+            for (Estoque estoque : estoques) {
+                // FILTRO: Só incluir produtos que:
+                // 1. Tenham produto associado
+                // 2. Tenham almoxarifado definido (ID_ALMOX NOT NULL)
+                if (estoque.getProduto() != null && 
+                    estoque.getProduto().getAlmoxarifado() != null) {
+                    
+                    String nomeProduto = estoque.getProduto().getNome();
+                    String descricaoProduto = estoque.getProduto().getDescricao();
+                    
+                    // Usar nome do almoxarifado como setor
+                    String nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
+                    int setorId = estoque.getProduto().getAlmoxarifado().getId();
+                    
+                    // Se o almoxarifado tem setor definido, usar o nome do setor
+                    if (estoque.getProduto().getAlmoxarifado().getSetor() != null) {
+                        nomeSetor = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
+                        setorId = estoque.getProduto().getAlmoxarifado().getSetor().getId();
+                    }
+                    
+                    java.util.Map<String, Object> itemEstoque = new java.util.HashMap<>();
+                    itemEstoque.put("id", estoque.getId());
+                    itemEstoque.put("produto", java.util.Map.of(
+                        "id", estoque.getProduto().getId(),
+                        "nome", nomeProduto,
+                        "descricao", descricaoProduto != null ? descricaoProduto : ""
+                    ));
+                    itemEstoque.put("quantidadeEstoque", estoque.getQuantidadeEstoque());
+                    itemEstoque.put("setor", java.util.Map.of(
+                        "id", setorId,
+                        "nome", nomeSetor
+                    ));
+                    
+                    resultado.add(itemEstoque);
+                    
+                    log.debug("TEMPO REAL: Produto {} no setor {} com quantidade {}", 
+                             nomeProduto, nomeSetor, estoque.getQuantidadeEstoque());
+                }
+            }
+            
+            log.info("TEMPO REAL: Retornando {} registros de estoque atualizados por setor", resultado.size());
+            return resultado;
+            
+        } catch (Exception e) {
+            log.error("TEMPO REAL: Erro ao buscar estoque por setor sem cache: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro ao buscar estoque em tempo real", e);
+        }
+    }
 }

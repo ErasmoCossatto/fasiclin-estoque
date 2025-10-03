@@ -289,6 +289,37 @@ class MovimentacaoManager {
     }
 
     /**
+     * Carrega estoque em TEMPO REAL (sem cache) - usado após movimentações
+     */
+    async loadEstoquePorSetorTempoReal() {
+        try {
+            console.log('[TEMPO REAL] Carregando estoque atualizado sem cache...');
+            
+            // Usar o novo endpoint que força consulta direta ao banco
+            const response = await this.apiManager.request('/estoque/tempo-real');
+            
+            if (response.success && response.data) {
+                this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
+                console.log(`[TEMPO REAL] ✅ ${this.estoquePorSetor.length} registros atualizados carregados`);
+                
+                // Log detalhado dos dados recebidos
+                this.estoquePorSetor.forEach((item, index) => {
+                    console.log(`[TEMPO REAL] Item ${index + 1}: ${item.produto?.nome} - Setor: ${item.setor?.nome} - Qtd: ${item.quantidadeEstoque}`);
+                });
+                
+            } else {
+                console.warn('[TEMPO REAL] Nenhum estoque encontrado na resposta');
+                this.estoquePorSetor = [];
+            }
+            
+        } catch (error) {
+            console.error('[TEMPO REAL] Erro ao carregar estoque em tempo real:', error);
+            this.estoquePorSetor = [];
+            throw error;
+        }
+    }
+
+    /**
      * Popula select de estoques
      */
     populateEstoqueSelect() {
@@ -730,22 +761,35 @@ class MovimentacaoManager {
                 
                 // Aguardar um pequeno delay para permitir que o backend processe completamente
                 console.log('[MovimentacaoManager] Aguardando processamento do backend...');
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, 500));
                 
-                // Recarregar dados em paralelo para máxima eficiência
-                console.log('[MovimentacaoManager] Recarregando dados após movimentação...');
-                await Promise.all([
-                    this.loadMovimentacoes(),
-                    this.loadEstoquePorSetor()
-                ]);
+                // ATUALIZAÇÃO EM TEMPO REAL: Usar endpoint específico sem cache
+                console.log('[MovimentacaoManager] 🔄 Recarregando dados com endpoint de tempo real...');
+                try {
+                    await Promise.all([
+                        this.loadMovimentacoes(),
+                        this.loadEstoquePorSetorTempoReal() // USAR VERSÃO TEMPO REAL
+                    ]);
+                    
+                    console.log('[MovimentacaoManager] ✅ Dados atualizados com sucesso');
+                } catch (error) {
+                    console.error('[MovimentacaoManager] ❌ Erro ao atualizar dados:', error);
+                    
+                    // Fallback: tentar o método tradicional
+                    console.log('[MovimentacaoManager] 🔄 Tentando atualização com método tradicional...');
+                    await Promise.all([
+                        this.loadMovimentacoes(),
+                        this.loadEstoquePorSetor()
+                    ]);
+                }
                 
                 // Forçar renderização de todos os componentes
-                console.log('[MovimentacaoManager] 🔄 Atualizando interface...');
+                console.log('[MovimentacaoManager] 🎨 Atualizando interface...');
                 this.renderMovimentacoes();
                 this.renderStockPanel();
                 
                 // Mostrar notificação de atualização do painel
-                this.showNotification('📊 Painel de estoque atualizado com novas quantidades', 'info', 2000);
+                this.showNotification('📊 Dados atualizados em tempo real!', 'info', 2000);
             } else {
                 console.error('[MovimentacaoManager] Erro na resposta da API:', response);
                 this.showNotification('❌ Erro ao salvar movimentação: ' + (response.error || 'Erro desconhecido'), 'error');
@@ -1099,7 +1143,7 @@ class MovimentacaoManager {
     /**
      * Validação em tempo real da quantidade
      */
-    validateQuantityInRealTime() {
+    async validateQuantityInRealTime() {
         const quantityInput = document.getElementById('amount');
         const produtoSelect = document.getElementById('produtoSelect');
         const setorOrigemSelect = document.getElementById('setor-origem-select');
@@ -1117,6 +1161,14 @@ class MovimentacaoManager {
         this.clearValidationMessage();
         
         if (quantidade && produtoId && setorOrigemId) {
+            // FORÇAR ATUALIZAÇÃO EM TEMPO REAL antes da validação
+            try {
+                console.log('[VALIDAÇÃO] Atualizando dados para validação em tempo real...');
+                await this.loadEstoquePorSetorTempoReal();
+            } catch (error) {
+                console.warn('[VALIDAÇÃO] Erro ao atualizar dados em tempo real, usando cache:', error);
+            }
+            
             const estoqueDisponivel = this.getEstoqueDisponivelNoSetor(produtoId, setorOrigemId);
             
             if (estoqueDisponivel === null) {
@@ -1135,7 +1187,7 @@ class MovimentacaoManager {
             } else {
                 const nomeSetor = this.setores.find(s => s.id == setorOrigemId)?.nome || 'Setor desconhecido';
                 this.showValidationMessage(
-                    `✅ OK - ${nomeSetor} tem ${estoqueDisponivel} disponível`, 
+                    `✅ OK - ${nomeSetor} tem ${estoqueDisponivel} disponível (dados atualizados)`, 
                     'success'
                 );
                 saveBtn.disabled = false;
@@ -1258,8 +1310,8 @@ class MovimentacaoManager {
         try {
             console.log('[ATUALIZAÇÃO] Atualizando painel de estoque em tempo real...');
             
-            // Recarregar dados do estoque por setor
-            await this.loadEstoquePorSetor();
+            // Usar o método de tempo real para garantir dados frescos
+            await this.loadEstoquePorSetorTempoReal();
             
             // Re-renderizar o painel
             this.renderStockPanel();
@@ -1267,11 +1319,46 @@ class MovimentacaoManager {
             console.log('[ATUALIZAÇÃO] ✅ Painel de estoque atualizado com sucesso');
             
             // Mostrar notificação discreta sobre a atualização
-            this.showNotification('📊 Quantidades atualizadas na barra lateral', 'info', 2000);
+            this.showNotification('📊 Quantidades atualizadas em tempo real', 'info', 2000);
             
         } catch (error) {
             console.error('[ATUALIZAÇÃO] ❌ Erro ao atualizar painel:', error);
-            this.showNotification('⚠️ Erro ao atualizar quantidades', 'warning', 3000);
+            this.showNotification('⚠️ Erro ao atualizar quantidades - usando dados em cache', 'warning', 3000);
+            
+            // Fallback: tentar com método tradicional
+            try {
+                await this.loadEstoquePorSetor();
+                this.renderStockPanel();
+            } catch (fallbackError) {
+                console.error('[ATUALIZAÇÃO] ❌ Erro no fallback:', fallbackError);
+            }
+        }
+    }
+
+    /**
+     * Método público para atualização manual (pode ser chamado via console ou botão)
+     */
+    async atualizarDadosManual() {
+        try {
+            console.log('[MANUAL] Iniciando atualização manual dos dados...');
+            this.setLoading(true);
+            
+            await Promise.all([
+                this.loadMovimentacoes(),
+                this.loadEstoquePorSetorTempoReal()
+            ]);
+            
+            this.renderMovimentacoes();
+            this.renderStockPanel();
+            
+            this.showNotification('🔄 Dados atualizados manualmente com sucesso!', 'success');
+            console.log('[MANUAL] ✅ Atualização manual concluída');
+            
+        } catch (error) {
+            console.error('[MANUAL] ❌ Erro na atualização manual:', error);
+            this.showNotification('❌ Erro na atualização manual: ' + error.message, 'error');
+        } finally {
+            this.setLoading(false);
         }
     }
 

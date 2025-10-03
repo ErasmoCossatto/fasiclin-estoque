@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao;
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Movimentacao.TipoMovimentacao;
+import com.br.fasipe.estoque.MovimentacaoEstoque.models.Estoque;
+import com.br.fasipe.estoque.MovimentacaoEstoque.models.Setor;
 import com.br.fasipe.estoque.MovimentacaoEstoque.services.MovimentacaoService;
 import com.br.fasipe.estoque.MovimentacaoEstoque.dto.MovimentacaoEntreSetoresDTO;
 
@@ -250,6 +252,92 @@ public class MovimentacaoController {
         } catch (Exception e) {
             log.error("Erro ao criar dados de teste: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body("Erro ao criar dados de teste: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NOVO: Consulta produtos disponíveis por setor
+     * Ajuda a entender quais produtos podem ser movimentados de cada setor
+     */
+    @GetMapping("/produtos-por-setor")
+    public ResponseEntity<Map<String, Object>> consultarProdutosPorSetor() {
+        log.info("Consultando produtos disponíveis por setor");
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            Map<String, Object> produtosPorSetor = movimentacaoService.consultarProdutosPorSetor();
+            
+            response.put("success", true);
+            response.put("dados", produtosPorSetor);
+            response.put("message", "Consulta realizada com sucesso");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Erro ao consultar produtos por setor: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Erro ao consultar produtos por setor: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    
+    /**
+     * NOVO: Endpoint para testar movimentação entre setores específicos
+     * Teste da nova funcionalidade de controle por setor
+     */
+    @PostMapping("/test-movimentacao-setores")
+    public ResponseEntity<Map<String, Object>> testarMovimentacaoEntreSetores(
+            @RequestParam Integer idProduto,
+            @RequestParam Integer idSetorOrigem,
+            @RequestParam Integer idSetorDestino,
+            @RequestParam Integer quantidade) {
+        
+        log.info("TESTE: Iniciando movimentação entre setores - Produto: {}, Origem: {}, Destino: {}, Quantidade: {}", 
+                idProduto, idSetorOrigem, idSetorDestino, quantidade);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Criar movimentação de teste
+            Movimentacao movimentacao = new Movimentacao();
+            movimentacao.setTipoMovimentacao(TipoMovimentacao.SAIDA); // Saída do setor origem
+            movimentacao.setQuantidade(quantidade);
+            
+            // Criar entidades para a movimentação
+            Estoque estoque = new Estoque();
+            estoque.setId(idProduto); // Vai ser tratado como produto no validateRelatedEntities
+            movimentacao.setEstoque(estoque);
+            
+            Setor setorOrigem = new Setor();
+            setorOrigem.setId(idSetorOrigem);
+            movimentacao.setSetorOrigem(setorOrigem);
+            
+            Setor setorDestino = new Setor();
+            setorDestino.setId(idSetorDestino);
+            movimentacao.setSetorDestino(setorDestino);
+            
+            // Processar movimentação
+            Movimentacao resultado = movimentacaoService.insert(movimentacao);
+            
+            response.put("success", true);
+            response.put("message", "Movimentação entre setores realizada com sucesso!");
+            response.put("movimentacao", resultado);
+            response.put("id", resultado.getId());
+            
+            log.info("TESTE: Movimentação concluída com sucesso - ID: {}", resultado.getId());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("TESTE: Erro na movimentação entre setores: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            response.put("error", "Falha no teste de movimentação");
+            
+            return ResponseEntity.badRequest().body(response);
         }
     }
 }
