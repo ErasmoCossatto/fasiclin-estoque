@@ -268,6 +268,14 @@ tbody td {
     font-weight: var(--font-weight-medium);
 }
 
+.pagination-pages {
+    margin-left: var(--spacing-md);
+    padding-left: var(--spacing-md);
+    border-left: 1px solid var(--gray-300);
+    color: var(--primary-color);
+    font-weight: var(--font-weight-semibold);
+}
+
 .pagination-buttons {
     display: flex;
     gap: var(--spacing-sm);
@@ -766,4 +774,72 @@ tbody td {
 .stock-item-quantity.low-stock {
     background: var(--danger-100);
     color: var(--danger-700);
+}
+
+/* Animação de feedback de atualização */
+@keyframes fadeInOut {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    15% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    85% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
+.stock-update-success {
+    animation: fadeInOut 2s ease-in-out;
+}
+
+/* Efeito de atualização no painel de estoque */
+.stock-list.updating {
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.stock-list.updated {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+/* Animação de destaque para item atualizado */
+@keyframes highlight {
+    0% {
+        background: rgba(76, 175, 80, 0.2);
+        transform: scale(1);
+    }
+    50% {
+        background: rgba(76, 175, 80, 0.4);
+        transform: scale(1.02);
+    }
+    100% {
+        background: transparent;
+        transform: scale(1);
+    }
+}
+
+.stock-item.updated {
+    animation: highlight 1s ease-in-out;
+}
+
+.stock-item-quantity.updated {
+    animation: pulse 0.5s ease-in-out 2;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
 }

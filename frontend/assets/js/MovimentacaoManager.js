@@ -12,6 +12,11 @@ class MovimentacaoManager {
         this.currentEditId = null;
         this.isLoading = false;
         
+        // Paginação
+        this.currentPage = 1;
+        this.itemsPerPage = 20;
+        this.totalPages = 0;
+        
         this.init();
     }
 
@@ -21,8 +26,42 @@ class MovimentacaoManager {
     async init() {
         console.log('[MovimentacaoManager] Inicializando...');
         console.log('[MovimentacaoManager] Data/Hora atual:', new Date().toLocaleString('pt-BR'));
+        
+        // Testar conectividade com o backend
+        await this.testBackendConnection();
+        
         this.bindEvents();
         await this.loadData();
+    }
+
+    /**
+     * Testa a conectividade com o backend
+     */
+    async testBackendConnection() {
+        console.log('[CONECTIVIDADE] Testando conexão com o backend...');
+        console.log('[CONECTIVIDADE] URL base:', this.apiManager.baseURL);
+        
+        try {
+            const response = await fetch(`${this.apiManager.baseURL}/movimentacoes`, {
+                method: 'GET',
+                headers: this.apiManager.headers
+            });
+            
+            if (response.ok) {
+                console.log('[CONECTIVIDADE] ✅ Backend conectado com sucesso!');
+                console.log('[CONECTIVIDADE] Status:', response.status, response.statusText);
+            } else {
+                console.error('[CONECTIVIDADE] ❌ Backend retornou erro:', response.status, response.statusText);
+                this.showNotification(`⚠️ Backend retornou erro: ${response.status}. Verifique se o servidor está rodando.`, 'error', 6000);
+            }
+        } catch (error) {
+            console.error('[CONECTIVIDADE] ❌ Erro ao conectar com o backend:', error);
+            this.showNotification(
+                '❌ Não foi possível conectar ao backend. Verifique se o servidor está rodando em http://localhost:8080',
+                'error',
+                8000
+            );
+        }
     }
 
     /**
@@ -79,6 +118,18 @@ class MovimentacaoManager {
         const btnAtualizar = document.querySelector('[onclick="loadMovements()"]');
         if (btnAtualizar) {
             btnAtualizar.onclick = () => this.loadMovimentacoes();
+        }
+
+        // Botões de paginação
+        const btnPrevPage = document.getElementById('prev-page');
+        const btnNextPage = document.getElementById('next-page');
+        
+        if (btnPrevPage) {
+            btnPrevPage.addEventListener('click', () => this.previousPage());
+        }
+        
+        if (btnNextPage) {
+            btnNextPage.addEventListener('click', () => this.nextPage());
         }
 
         console.log('[MovimentacaoManager] Eventos vinculados');
@@ -154,6 +205,9 @@ class MovimentacaoManager {
                     return (b.id || 0) - (a.id || 0);
                 });
                 
+                // Resetar para primeira página ao carregar novos dados
+                this.currentPage = 1;
+                
                 console.log(`[MovimentacaoManager] ✅ ${this.movimentacoes.length} movimentações carregadas e ordenadas (mais recentes primeiro):`);
                 this.movimentacoes.forEach((mov, index) => {
                     console.log(`  ${index + 1}. ID: ${mov.id}, Tipo: ${mov.tipoMovimentacao}, Quantidade: ${mov.quantidade}, Data: ${mov.dataMovimentacao}`);
@@ -165,6 +219,7 @@ class MovimentacaoManager {
             } else {
                 console.warn('[MovimentacaoManager] ⚠️ Resposta inválida ou sem dados:', result);
                 this.movimentacoes = [];
+                this.currentPage = 1;
                 
                 // Renderizar estado vazio se não há dados
                 console.log('[MovimentacaoManager] Renderizando estado vazio - nenhuma movimentação encontrada');
@@ -173,6 +228,7 @@ class MovimentacaoManager {
         } catch (error) {
             console.error('[MovimentacaoManager] ❌ Erro ao carregar movimentações:', error);
             this.movimentacoes = [];
+            this.currentPage = 1;
             
             // Renderizar estado vazio em caso de erro
             console.log('[MovimentacaoManager] Renderizando estado vazio devido ao erro');
@@ -251,16 +307,26 @@ class MovimentacaoManager {
      */
     async loadSetores() {
         try {
-            console.log('[MovimentacaoManager] Carregando setores...');
+            console.log('[SETORES] 🔄 Iniciando carregamento de setores...');
+            console.log('[SETORES] Chamando endpoint:', `${this.apiManager.baseURL}/setores`);
+            
             const setores = await this.apiManager.listarSetores();
             
+            console.log('[SETORES] Resposta da API:', setores);
+            
             this.setores = setores || [];
-            console.log(`[MovimentacaoManager] ✅ ${this.setores.length} setores carregados`);
+            console.log(`[SETORES] ✅ ${this.setores.length} setores carregados:`, this.setores);
+            
+            if (this.setores.length === 0) {
+                console.warn('[SETORES] ⚠️ Nenhum setor encontrado! Verifique se há dados no banco.');
+                this.showNotification('⚠️ Nenhum setor encontrado no sistema', 'warning', 4000);
+            }
             
             this.populateSetorSelects();
         } catch (error) {
-            console.error('[MovimentacaoManager] Erro ao carregar setores:', error);
+            console.error('[SETORES] ❌ Erro ao carregar setores:', error);
             this.setores = [];
+            this.showNotification('❌ Erro ao carregar setores: ' + error.message, 'error');
         }
     }
 
@@ -269,21 +335,46 @@ class MovimentacaoManager {
      */
     async loadEstoquePorSetor() {
         try {
-            console.log('[MovimentacaoManager] Carregando estoque por setor...');
+            console.log('[ESTOQUE_SETOR] 🔄 Iniciando carregamento de estoque por setor...');
+            console.log('[ESTOQUE_SETOR] Endpoint:', `${this.apiManager.baseURL}/estoque/por-setor`);
             
             // Usar o endpoint que retorna estoque por setor
             const response = await this.apiManager.request('/estoque/por-setor');
             
+            console.log('[ESTOQUE_SETOR] ========== RESPOSTA COMPLETA DA API ==========');
+            console.log('[ESTOQUE_SETOR] Response success:', response.success);
+            console.log('[ESTOQUE_SETOR] Response data type:', typeof response.data);
+            console.log('[ESTOQUE_SETOR] Response data is array:', Array.isArray(response.data));
+            console.log('[ESTOQUE_SETOR] Response data:', response.data);
+            console.log('[ESTOQUE_SETOR] ===============================================');
+            
             if (response.success && response.data) {
                 this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
-                console.log(`[MovimentacaoManager] ✅ ${this.estoquePorSetor.length} registros de estoque por setor carregados`);
+                console.log(`[ESTOQUE_SETOR] ✅ ${this.estoquePorSetor.length} registros de estoque por setor carregados`);
+                
+                // Log COMPLETO de TODOS os itens para debug
+                if (this.estoquePorSetor.length > 0) {
+                    console.log('[ESTOQUE_SETOR] ========== TODOS OS ITENS CARREGADOS ==========');
+                    this.estoquePorSetor.forEach((item, index) => {
+                        console.log(`[ESTOQUE_SETOR] Item ${index + 1}:`, {
+                            id: item.id,
+                            produto: item.produto,
+                            setor: item.setor,
+                            quantidade: item.quantidadeEstoque
+                        });
+                    });
+                    console.log('[ESTOQUE_SETOR] ================================================');
+                } else {
+                    console.warn('[ESTOQUE_SETOR] ⚠️ Array está vazio! Nenhum item encontrado no estoque por setor!');
+                }
             } else {
-                console.warn('[MovimentacaoManager] Nenhum estoque por setor encontrado');
+                console.warn('[ESTOQUE_SETOR] ⚠️ Resposta sem sucesso ou sem dados:', response);
                 this.estoquePorSetor = [];
             }
             
         } catch (error) {
-            console.error('[MovimentacaoManager] Erro ao carregar estoque por setor:', error);
+            console.error('[ESTOQUE_SETOR] ❌ Erro ao carregar estoque por setor:', error);
+            console.error('[ESTOQUE_SETOR] Stack trace:', error.stack);
             this.estoquePorSetor = [];
         }
     }
@@ -293,27 +384,40 @@ class MovimentacaoManager {
      */
     async loadEstoquePorSetorTempoReal() {
         try {
-            console.log('[TEMPO REAL] Carregando estoque atualizado sem cache...');
+            console.log('[TEMPO REAL] 🔄 Carregando estoque atualizado sem cache...');
             
             // Usar o novo endpoint que força consulta direta ao banco
             const response = await this.apiManager.request('/estoque/tempo-real');
+            
+            console.log('[TEMPO REAL] ========== RESPOSTA COMPLETA DA API ==========');
+            console.log('[TEMPO REAL] Response success:', response.success);
+            console.log('[TEMPO REAL] Response data:', response.data);
+            console.log('[TEMPO REAL] ===============================================');
             
             if (response.success && response.data) {
                 this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
                 console.log(`[TEMPO REAL] ✅ ${this.estoquePorSetor.length} registros atualizados carregados`);
                 
-                // Log detalhado dos dados recebidos
+                // Log detalhado de TODOS os dados recebidos
+                console.log('[TEMPO REAL] ========== TODOS OS ITENS ATUALIZADOS ==========');
                 this.estoquePorSetor.forEach((item, index) => {
-                    console.log(`[TEMPO REAL] Item ${index + 1}: ${item.produto?.nome} - Setor: ${item.setor?.nome} - Qtd: ${item.quantidadeEstoque}`);
+                    console.log(`[TEMPO REAL] Item ${index + 1}:`, {
+                        id: item.id,
+                        produto: item.produto?.nome,
+                        setor: item.setor?.nome,
+                        quantidade: item.quantidadeEstoque
+                    });
                 });
+                console.log('[TEMPO REAL] ================================================');
                 
             } else {
-                console.warn('[TEMPO REAL] Nenhum estoque encontrado na resposta');
+                console.warn('[TEMPO REAL] ⚠️ Nenhum estoque encontrado na resposta');
                 this.estoquePorSetor = [];
             }
             
         } catch (error) {
-            console.error('[TEMPO REAL] Erro ao carregar estoque em tempo real:', error);
+            console.error('[TEMPO REAL] ❌ Erro ao carregar estoque em tempo real:', error);
+            console.error('[TEMPO REAL] Stack trace:', error.stack);
             this.estoquePorSetor = [];
             throw error;
         }
@@ -406,7 +510,7 @@ class MovimentacaoManager {
     }
 
     /**
-     * Renderiza tabela/cards de movimentações
+     * Renderiza tabela/cards de movimentações com paginação
      */
     renderMovimentacoes() {
         console.log('[MovimentacaoManager] 🎨 INICIANDO RENDERIZAÇÃO DE MOVIMENTAÇÕES...');
@@ -437,31 +541,50 @@ class MovimentacaoManager {
             return;
         }
 
-        console.log(`[MovimentacaoManager] 📊 RENDERIZANDO ${this.movimentacoes.length} MOVIMENTAÇÕES...`);
+        console.log(`[MovimentacaoManager] 📊 Total de movimentações: ${this.movimentacoes.length}`);
+        
+        // Calcular paginação
+        this.totalPages = Math.ceil(this.movimentacoes.length / this.itemsPerPage);
+        
+        // Garantir que a página atual seja válida
+        if (this.currentPage > this.totalPages) {
+            this.currentPage = this.totalPages;
+        }
+        if (this.currentPage < 1) {
+            this.currentPage = 1;
+        }
+        
+        // Calcular índices para a página atual
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+        const endIndex = Math.min(startIndex + this.itemsPerPage, this.movimentacoes.length);
+        
+        // Obter movimentações da página atual
+        const movimentacoesPaginadas = this.movimentacoes.slice(startIndex, endIndex);
+        
+        console.log(`[MovimentacaoManager] 📄 Página ${this.currentPage} de ${this.totalPages} (exibindo ${movimentacoesPaginadas.length} itens)`);
 
         // Renderizar tabela desktop
         if (tableBody) {
             console.log('[MovimentacaoManager] 🖥️ Renderizando tabela desktop...');
-            const tableHTML = this.movimentacoes.map((mov, index) => {
-                console.log(`  📋 Processando movimentação ${index + 1} (ID: ${mov.id}):`, mov);
+            const tableHTML = movimentacoesPaginadas.map((mov, index) => {
+                console.log(`  📋 Processando movimentação ${startIndex + index + 1} (ID: ${mov.id}):`, mov);
                 return this.createTableRow(mov);
             }).join('');
             
             tableBody.innerHTML = tableHTML;
             console.log('[MovimentacaoManager] ✅ Tabela desktop renderizada com sucesso');
-            console.log('[MovimentacaoManager] HTML da tabela:', tableBody.innerHTML.substring(0, 200) + '...');
         }
 
         // Renderizar cards mobile
         if (mobileCards) {
             console.log('[MovimentacaoManager] 📱 Renderizando cards mobile...');
-            const cardsHTML = this.movimentacoes.map(mov => this.createCard(mov)).join('');
+            const cardsHTML = movimentacoesPaginadas.map(mov => this.createCard(mov)).join('');
             mobileCards.innerHTML = cardsHTML;
             console.log('[MovimentacaoManager] ✅ Cards mobile renderizados com sucesso');
         }
 
         this.updatePaginationInfo();
-        console.log(`[MovimentacaoManager] 🎉 RENDERIZAÇÃO CONCLUÍDA COM SUCESSO: ${this.movimentacoes.length} movimentações exibidas`);
+        console.log(`[MovimentacaoManager] 🎉 RENDERIZAÇÃO CONCLUÍDA: ${movimentacoesPaginadas.length} movimentações exibidas (página ${this.currentPage}/${this.totalPages})`);
         
         // Verificação final do DOM
         setTimeout(() => {
@@ -605,19 +728,77 @@ class MovimentacaoManager {
     updatePaginationInfo() {
         const total = this.movimentacoes.length;
         
+        // Calcular índices da página atual
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+        const endIndex = Math.min(startIndex + this.itemsPerPage, total);
+        
         const startElement = document.getElementById('start-item');
         const endElement = document.getElementById('end-item');
         const totalElement = document.getElementById('total-items');
+        const currentPageElement = document.getElementById('current-page');
+        const totalPagesElement = document.getElementById('total-pages');
         
-        if (startElement) startElement.textContent = total > 0 ? '1' : '0';
-        if (endElement) endElement.textContent = total.toString();
+        if (startElement) startElement.textContent = total > 0 ? (startIndex + 1).toString() : '0';
+        if (endElement) endElement.textContent = endIndex.toString();
         if (totalElement) totalElement.textContent = total.toString();
+        if (currentPageElement) currentPageElement.textContent = this.currentPage.toString();
+        if (totalPagesElement) totalPagesElement.textContent = this.totalPages.toString();
+        
+        // Atualizar estado dos botões de navegação
+        const btnPrev = document.getElementById('prev-page');
+        const btnNext = document.getElementById('next-page');
+        
+        if (btnPrev) {
+            btnPrev.disabled = this.currentPage === 1;
+            btnPrev.style.opacity = this.currentPage === 1 ? '0.5' : '1';
+            btnPrev.style.cursor = this.currentPage === 1 ? 'not-allowed' : 'pointer';
+        }
+        
+        if (btnNext) {
+            btnNext.disabled = this.currentPage >= this.totalPages;
+            btnNext.style.opacity = this.currentPage >= this.totalPages ? '0.5' : '1';
+            btnNext.style.cursor = this.currentPage >= this.totalPages ? 'not-allowed' : 'pointer';
+        }
+        
+        console.log(`[Paginação] Página ${this.currentPage}/${this.totalPages} - Exibindo itens ${startIndex + 1}-${endIndex} de ${total}`);
+    }
+    
+    /**
+     * Navega para a próxima página
+     */
+    nextPage() {
+        if (this.currentPage < this.totalPages) {
+            this.currentPage++;
+            this.renderMovimentacoes();
+            
+            // Scroll suave para o topo da tabela
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }
+    
+    /**
+     * Navega para a página anterior
+     */
+    previousPage() {
+        if (this.currentPage > 1) {
+            this.currentPage--;
+            this.renderMovimentacoes();
+            
+            // Scroll suave para o topo da tabela
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
     }
 
     /**
      * Exibe modal de nova/edição movimentação
      */
-    showModal(movimentacao = null) {
+    async showModal(movimentacao = null) {
         const modal = document.getElementById('movement-modal');
         const form = document.getElementById('movement-form');
         const title = document.getElementById('modal-title');
@@ -660,7 +841,17 @@ class MovimentacaoManager {
         modal.classList.add('show');
         document.body.classList.add('modal-open');
         
-        // Renderizar painel de estoque
+        // Mostrar loading no painel de estoque
+        const stockContainer = document.getElementById('stock-by-sector');
+        if (stockContainer) {
+            stockContainer.innerHTML = '<div class="loading-stocks">⏳ Carregando estoque disponível...</div>';
+        }
+        
+        // Carregar dados atualizados do estoque antes de renderizar
+        console.log('[MODAL] 🔄 Recarregando estoque antes de abrir modal...');
+        await this.loadEstoquePorSetor();
+        
+        // Renderizar painel de estoque com dados atualizados
         this.renderStockPanel();
         
         // Foco no primeiro campo
@@ -753,35 +944,59 @@ class MovimentacaoManager {
             console.log('[MovimentacaoManager] Resposta da API:', response);
 
             if (response.success) {
+                // Mostrar feedback visual no painel de estoque
+                const stockContainer = document.getElementById('stock-by-sector');
+                if (stockContainer) {
+                    stockContainer.innerHTML = '<div class="loading-stocks">✅ Movimentação salva! Atualizando estoque...</div>';
+                }
+                
+                // Aguardar processamento do backend
+                console.log('[MovimentacaoManager] Aguardando processamento do backend...');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // ATUALIZAÇÃO EM TEMPO REAL: Recarregar estoque ANTES de fechar o modal
+                console.log('[MovimentacaoManager] 🔄 Recarregando estoque em tempo real...');
+                try {
+                    await this.loadEstoquePorSetorTempoReal(); // Carregar dados atualizados
+                    this.renderStockPanel(); // Renderizar painel com novos valores
+                    
+                    console.log('[MovimentacaoManager] ✅ Painel de estoque atualizado com sucesso');
+                    
+                    // Mostrar feedback visual temporário
+                    if (stockContainer) {
+                        const successMsg = document.createElement('div');
+                        successMsg.className = 'stock-update-success';
+                        successMsg.innerHTML = '✅ Estoque atualizado!';
+                        successMsg.style.cssText = 'position: absolute; top: 10px; right: 10px; background: #4caf50; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; z-index: 1000; animation: fadeInOut 2s ease-in-out;';
+                        stockContainer.style.position = 'relative';
+                        stockContainer.appendChild(successMsg);
+                        
+                        // Remover após 2 segundos
+                        setTimeout(() => successMsg.remove(), 2000);
+                    }
+                    
+                } catch (error) {
+                    console.error('[MovimentacaoManager] ❌ Erro ao atualizar painel de estoque:', error);
+                    
+                    // Fallback: tentar o método tradicional
+                    console.log('[MovimentacaoManager] 🔄 Tentando atualização com método tradicional...');
+                    await this.loadEstoquePorSetor();
+                    this.renderStockPanel();
+                }
+                
+                // Aguardar mais um pouco para o usuário ver a atualização
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Notificação e fechar modal
                 this.showNotification(
                     this.currentEditId ? '✅ Movimentação atualizada com sucesso!' : '✅ Movimentação criada com sucesso!',
                     'success'
                 );
                 this.hideModal();
                 
-                // Aguardar um pequeno delay para permitir que o backend processe completamente
-                console.log('[MovimentacaoManager] Aguardando processamento do backend...');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // ATUALIZAÇÃO EM TEMPO REAL: Usar endpoint específico sem cache
-                console.log('[MovimentacaoManager] 🔄 Recarregando dados com endpoint de tempo real...');
-                try {
-                    await Promise.all([
-                        this.loadMovimentacoes(),
-                        this.loadEstoquePorSetorTempoReal() // USAR VERSÃO TEMPO REAL
-                    ]);
-                    
-                    console.log('[MovimentacaoManager] ✅ Dados atualizados com sucesso');
-                } catch (error) {
-                    console.error('[MovimentacaoManager] ❌ Erro ao atualizar dados:', error);
-                    
-                    // Fallback: tentar o método tradicional
-                    console.log('[MovimentacaoManager] 🔄 Tentando atualização com método tradicional...');
-                    await Promise.all([
-                        this.loadMovimentacoes(),
-                        this.loadEstoquePorSetor()
-                    ]);
-                }
+                // Recarregar lista de movimentações
+                console.log('[MovimentacaoManager] 🔄 Recarregando lista de movimentações...');
+                await this.loadMovimentacoes();
                 
                 // Forçar renderização de todos os componentes
                 console.log('[MovimentacaoManager] 🎨 Atualizando interface...');
@@ -813,23 +1028,34 @@ class MovimentacaoManager {
         const quantidade = parseInt(document.getElementById('amount').value) || 0;
         const tipoMovimentacao = document.getElementById('type').value;
         
+        // Capturar data e hora local do PC (sem problemas de UTC)
+        const agora = new Date();
+        const dataLocal = this.formatLocalDateForBackend(agora);
+        const horaLocal = this.formatLocalTimeForBackend(agora);
+        
         console.log('[MovimentacaoManager] Coletando dados do formulário para transferência entre setores:', {
             produtoId,
             setorOrigemId,
             setorDestinoId,
             quantidade,
             tipoMovimentacao,
+            dataMovimentacao: dataLocal,
+            horaMovimentacao: horaLocal,
             usuario: 'null (aguardando implementação de variável global)'
         });
         
         // Formato esperado pelo MovimentacaoEntreSetoresDTO
+        // NOTA: dataMovimentacao e horaMovimentacao são INFORMATIVAS apenas
+        // O backend SEMPRE usa LocalDate.now() e LocalTime.now() para garantir consistência
         return {
             idProduto: produtoId,
             idSetorOrigem: setorOrigemId,
             idSetorDestino: setorDestinoId,
             quantidade: quantidade,
             tipoMovimentacao: tipoMovimentacao,
-            idUsuario: null // Temporariamente null até implementar variável global
+            idUsuario: null, // Temporariamente null até implementar variável global
+            dataMovimentacao: dataLocal, // Informativo - backend usa data do servidor
+            horaMovimentacao: horaLocal  // Informativo - backend usa hora do servidor
         };
     }
 
@@ -837,29 +1063,67 @@ class MovimentacaoManager {
      * Valida formulário para transferência entre setores
      */
     async validateForm(data) {
+        console.log('[VALIDAÇÃO] Iniciando validação do formulário...');
+        console.log('[VALIDAÇÃO] Dados recebidos:', data);
+        
         const errors = [];
 
-        if (!data.idProduto) errors.push('Selecione um produto');
-        if (!data.idSetorOrigem) errors.push('Selecione o setor de origem');
-        if (!data.idSetorDestino) errors.push('Selecione o setor de destino');
-        if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
-        if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
+        if (!data.idProduto) {
+            console.log('[VALIDAÇÃO] ❌ Produto não selecionado');
+            errors.push('Selecione um produto');
+        } else {
+            console.log('[VALIDAÇÃO] ✅ Produto selecionado:', data.idProduto);
+        }
+        
+        if (!data.idSetorOrigem) {
+            console.log('[VALIDAÇÃO] ❌ Setor de origem não selecionado');
+            errors.push('Selecione o setor de origem');
+        } else {
+            console.log('[VALIDAÇÃO] ✅ Setor de origem selecionado:', data.idSetorOrigem);
+        }
+        
+        if (!data.idSetorDestino) {
+            console.log('[VALIDAÇÃO] ❌ Setor de destino não selecionado');
+            errors.push('Selecione o setor de destino');
+        } else {
+            console.log('[VALIDAÇÃO] ✅ Setor de destino selecionado:', data.idSetorDestino);
+        }
+        
+        if (!data.tipoMovimentacao) {
+            console.log('[VALIDAÇÃO] ❌ Tipo de movimentação não selecionado');
+            errors.push('Selecione o tipo de movimentação');
+        } else {
+            console.log('[VALIDAÇÃO] ✅ Tipo de movimentação selecionado:', data.tipoMovimentacao);
+        }
+        
+        if (!data.quantidade || data.quantidade <= 0) {
+            console.log('[VALIDAÇÃO] ❌ Quantidade inválida:', data.quantidade);
+            errors.push('Digite uma quantidade válida');
+        } else {
+            console.log('[VALIDAÇÃO] ✅ Quantidade válida:', data.quantidade);
+        }
 
         // Validar se setor origem é diferente do destino
         if (data.idSetorOrigem === data.idSetorDestino) {
+            console.log('[VALIDAÇÃO] ❌ Setores de origem e destino são iguais');
             errors.push('Setor de origem deve ser diferente do setor de destino');
         }
 
         if (errors.length > 0) {
+            console.log('[VALIDAÇÃO] ❌ Validação falhou com', errors.length, 'erros:', errors);
             this.showNotification(errors.join('<br>'), 'error');
             return false;
         }
 
         // Validação avançada de estoque disponível
         if (data.idProduto && data.quantidade && data.idSetorOrigem) {
+            console.log('[VALIDAÇÃO] Verificando estoque disponível...');
             const estoqueNoSetor = this.getEstoqueDisponivelNoSetor(data.idProduto, data.idSetorOrigem);
             
+            console.log('[VALIDAÇÃO] Estoque disponível no setor:', estoqueNoSetor);
+            
             if (estoqueNoSetor === null) {
+                console.log('[VALIDAÇÃO] ❌ Produto não encontrado no setor de origem');
                 this.showNotification(
                     `❌ Produto não encontrado no setor de origem!<br>` +
                     `Verifique se há estoque disponível no setor selecionado.`, 
@@ -869,6 +1133,7 @@ class MovimentacaoManager {
             }
             
             if (data.quantidade > estoqueNoSetor) {
+                console.log('[VALIDAÇÃO] ❌ Quantidade solicitada maior que disponível');
                 const nomeSetorOrigem = this.setores.find(s => s.id == data.idSetorOrigem)?.nome || 'Setor desconhecido';
                 this.showNotification(
                     `❌ Quantidade insuficiente no setor de origem!<br>` +
@@ -879,9 +1144,11 @@ class MovimentacaoManager {
                 );
                 return false;
             }
+            
+            console.log('[VALIDAÇÃO] ✅ Estoque suficiente no setor de origem');
         }
 
-        console.log('[MovimentacaoManager] ✅ Formulário validado com sucesso para transferência entre setores:', data);
+        console.log('[VALIDAÇÃO] ✅ Formulário validado com sucesso!');
         return true;
     }
 
@@ -1368,42 +1635,68 @@ class MovimentacaoManager {
     renderStockPanel() {
         const stockContainer = document.getElementById('stock-by-sector');
         if (!stockContainer) {
-            console.warn('[MovimentacaoManager] Container de estoque não encontrado');
+            console.warn('[RENDER_STOCK] ❌ Container de estoque não encontrado');
             return;
         }
 
-        console.log('[ESTOQUE] Renderizando painel. Dados:', this.estoquePorSetor);
+        console.log('[RENDER_STOCK] 🎨 Iniciando renderização do painel de estoque...');
+        console.log('[RENDER_STOCK] Dados disponíveis:', {
+            existe: !!this.estoquePorSetor,
+            ehArray: Array.isArray(this.estoquePorSetor),
+            quantidade: this.estoquePorSetor?.length || 0
+        });
+        console.log('[RENDER_STOCK] Dados completos:', this.estoquePorSetor);
 
         if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
-            stockContainer.innerHTML = '<div class="loading-stocks">Nenhum produto em estoque encontrado</div>';
+            console.warn('[RENDER_STOCK] ⚠️ Nenhum dado de estoque para renderizar');
+            stockContainer.innerHTML = '<div class="loading-stocks">❌ Nenhum produto em estoque encontrado. Verifique se há dados no banco.</div>';
             return;
         }
 
         // Agrupar estoque por setor
+        console.log('[RENDER_STOCK] Agrupando estoque por setor...');
         const stockBySetor = this.groupStockBySetor(this.estoquePorSetor);
-        console.log('[ESTOQUE] Agrupado por setor:', stockBySetor);
+        console.log('[RENDER_STOCK] Agrupado por setor:', stockBySetor);
         
         let html = '';
         
-        // Garantir que os setores principais apareçam mesmo se vazios
-        const setoresPrincipais = ['Compras', 'Teste', 'Estoque'];
-        const setoresEncontrados = new Set(Object.keys(stockBySetor));
-        
-        // Primeiro, adicionar setores principais na ordem preferida
-        setoresPrincipais.forEach(setorNome => {
+        // Renderizar apenas setores que realmente têm produtos
+        // Não forçar a exibição de setores vazios
+        const setoresComProdutos = Object.keys(stockBySetor).filter(setorNome => {
             const produtos = stockBySetor[setorNome] || [];
-            html += this.renderSetorGroup(setorNome, produtos);
-            setoresEncontrados.delete(setorNome);
+            return produtos.length > 0; // Apenas setores com produtos
         });
         
-        // Depois, adicionar outros setores que não estão na lista principal
-        setoresEncontrados.forEach(setorNome => {
-            const produtos = stockBySetor[setorNome] || [];
+        console.log('[RENDER_STOCK] Setores com produtos:', setoresComProdutos);
+        
+        if (setoresComProdutos.length === 0) {
+            console.warn('[RENDER_STOCK] ⚠️ Nenhum setor com produtos encontrado');
+            stockContainer.innerHTML = '<div class="loading-stocks">⚠️ Nenhum produto encontrado nos setores</div>';
+            return;
+        }
+        
+        // Ordem preferida para setores (apenas os que existem)
+        const ordemPreferida = ['Compras', 'Estoque'];
+        
+        // Primeiro, renderizar setores na ordem preferida (se existirem e tiverem produtos)
+        ordemPreferida.forEach(setorNome => {
+            if (setoresComProdutos.includes(setorNome)) {
+                const produtos = stockBySetor[setorNome];
+                console.log(`[RENDER_STOCK] Renderizando setor: ${setorNome} com ${produtos.length} produtos`);
+                html += this.renderSetorGroup(setorNome, produtos);
+                setoresComProdutos.splice(setoresComProdutos.indexOf(setorNome), 1);
+            }
+        });
+        
+        // Depois, renderizar outros setores com produtos
+        setoresComProdutos.forEach(setorNome => {
+            const produtos = stockBySetor[setorNome];
+            console.log(`[RENDER_STOCK] Renderizando setor: ${setorNome} com ${produtos.length} produtos`);
             html += this.renderSetorGroup(setorNome, produtos);
         });
 
-        stockContainer.innerHTML = html || '<div class="loading-stocks">Nenhum produto encontrado nos setores</div>';
-        console.log('[ESTOQUE] HTML renderizado:', html.length > 0 ? 'OK' : 'VAZIO');
+        stockContainer.innerHTML = html || '<div class="loading-stocks">⚠️ Erro ao renderizar estoque</div>';
+        console.log('[RENDER_STOCK] ✅ HTML renderizado:', html.length > 0 ? 'OK (' + html.length + ' chars)' : 'VAZIO');
         
         // Adicionar efeito visual de atualização
         stockContainer.style.opacity = '0.7';
@@ -1444,25 +1737,37 @@ class MovimentacaoManager {
      * Agrupa estoque por setor evitando duplicatas
      */
     groupStockBySetor(estoques) {
+        console.log('[GROUP_STOCK] 📊 Iniciando agrupamento de estoque por setor...');
+        console.log('[GROUP_STOCK] Total de itens a agrupar:', estoques.length);
+        
         const grouped = {};
         const produtosJaAdicionados = new Set(); // Evita duplicatas por produto
         
-        estoques.forEach(estoque => {
+        estoques.forEach((estoque, index) => {
+            console.log(`[GROUP_STOCK] Processando item ${index + 1}:`, estoque);
+            
             if (!estoque.produto || !estoque.produto.id) {
+                console.warn(`[GROUP_STOCK] ⚠️ Item ${index + 1} ignorado: sem produto válido`);
                 return; // Pula estoques sem produto válido
             }
             
             // Chave única para evitar duplicatas: setor + produto
             const produtoId = estoque.produto.id;
+            const produtoNome = estoque.produto.nome || 'Produto sem nome';
             let setor = 'Sem Setor';
             
             // Usar o nome do setor do objeto setor (novo formato)
             if (estoque.setor && estoque.setor.nome) {
                 setor = estoque.setor.nome;
+                console.log(`[GROUP_STOCK] ✅ Setor encontrado no objeto setor: ${setor}`);
             } else if (estoque.produto && estoque.produto.almoxarifado && estoque.produto.almoxarifado.nome) {
                 setor = estoque.produto.almoxarifado.nome;
+                console.log(`[GROUP_STOCK] ✅ Setor encontrado no almoxarifado do produto: ${setor}`);
             } else if (estoque.produto && estoque.produto.idAlmoxarifado) {
                 setor = `Almoxarifado ${estoque.produto.idAlmoxarifado}`;
+                console.log(`[GROUP_STOCK] ⚠️ Setor inferido do ID do almoxarifado: ${setor}`);
+            } else {
+                console.warn(`[GROUP_STOCK] ⚠️ Setor não identificado para produto ${produtoNome}`);
             }
             
             // Chave única para produto no setor
@@ -1470,34 +1775,44 @@ class MovimentacaoManager {
             
             // Se já foi adicionado, pula
             if (produtosJaAdicionados.has(chaveUnica)) {
-                console.log(`[ESTOQUE] Produto ${estoque.produto.nome} já existe no setor ${setor}, pulando duplicata`);
+                console.log(`[GROUP_STOCK] ⚠️ Duplicata detectada: ${produtoNome} no setor ${setor}, pulando...`);
                 return;
             }
             
             if (!grouped[setor]) {
                 grouped[setor] = [];
+                console.log(`[GROUP_STOCK] 🆕 Novo setor criado: ${setor}`);
             }
             
             grouped[setor].push(estoque);
             produtosJaAdicionados.add(chaveUnica);
+            console.log(`[GROUP_STOCK] ✅ Adicionado: ${produtoNome} no setor ${setor} (Qtd: ${estoque.quantidadeEstoque || 0})`);
         });
+        
+        console.log('[GROUP_STOCK] Agrupamento inicial concluído:', grouped);
         
         // Filtrar setores vazios ou inválidos
         const setoresValidos = {};
         Object.keys(grouped).forEach(setorNome => {
             if (setorNome !== 'Sem Setor' && grouped[setorNome].length > 0) {
                 setoresValidos[setorNome] = grouped[setorNome];
+                console.log(`[GROUP_STOCK] ✅ Setor válido: ${setorNome} com ${grouped[setorNome].length} produtos`);
+            } else if (setorNome === 'Sem Setor') {
+                console.warn(`[GROUP_STOCK] ⚠️ Setor "Sem Setor" ignorado com ${grouped[setorNome].length} produtos`);
             }
         });
         
         // Garantir que os setores apareçam numa ordem lógica (apenas os que realmente existem)
         const sortedGrouped = {};
-        const ordemPreferida = ['Compras', 'Teste', 'Estoque'];
+        const ordemPreferida = ['Compras', 'Estoque'];
+        
+        console.log('[GROUP_STOCK] Aplicando ordem preferida:', ordemPreferida);
         
         // Primeiro adiciona os setores na ordem preferida se existirem
         ordemPreferida.forEach(setorNome => {
             if (setoresValidos[setorNome]) {
                 sortedGrouped[setorNome] = setoresValidos[setorNome];
+                console.log(`[GROUP_STOCK] ✅ Setor ordenado (preferido): ${setorNome}`);
             }
         });
         
@@ -1505,10 +1820,12 @@ class MovimentacaoManager {
         Object.keys(setoresValidos).forEach(setorNome => {
             if (!ordemPreferida.includes(setorNome)) {
                 sortedGrouped[setorNome] = setoresValidos[setorNome];
+                console.log(`[GROUP_STOCK] ✅ Setor ordenado (outros): ${setorNome}`);
             }
         });
         
-        console.log(`[ESTOQUE] Agrupamento concluído: ${Object.keys(sortedGrouped).length} setores válidos`);
+        console.log(`[GROUP_STOCK] ✅ Agrupamento concluído: ${Object.keys(sortedGrouped).length} setores válidos`);
+        console.log('[GROUP_STOCK] Resultado final:', sortedGrouped);
         return sortedGrouped;
     }
 
@@ -1544,7 +1861,7 @@ class MovimentacaoManager {
     }
     formatDate(dateString) {
         if (!dateString) {
-            // Se não há data, usar data atual
+            console.warn('[formatDate] Data não fornecida, usando data atual');
             const agora = new Date();
             return agora.toLocaleDateString('pt-BR', {
                 day: '2-digit',
@@ -1556,18 +1873,36 @@ class MovimentacaoManager {
         try {
             let date;
             
+            console.log('[formatDate] Data recebida:', dateString, 'Tipo:', typeof dateString, 'É array:', Array.isArray(dateString));
+            
             // Se é um array (formato LocalDate do Spring Boot) [ano, mês, dia]
             if (Array.isArray(dateString) && dateString.length >= 3) {
-                date = new Date(dateString[0], dateString[1] - 1, dateString[2]); // mês é 0-indexado
+                // Spring Boot retorna: [ano, mês (1-12), dia]
+                // JavaScript Date espera: (ano, mês (0-11), dia)
+                const ano = dateString[0];
+                const mes = dateString[1] - 1; // Converter de 1-12 para 0-11
+                const dia = dateString[2];
+                
+                console.log('[formatDate] Criando data a partir de array:', {ano, mes: mes + 1, dia});
+                date = new Date(ano, mes, dia);
+            } else if (typeof dateString === 'string') {
+                // Se é uma string no formato ISO (YYYY-MM-DD)
+                console.log('[formatDate] Processando string de data:', dateString);
+                // Usar parseISO corretamente para evitar problemas de timezone
+                const parts = dateString.split('-');
+                if (parts.length === 3) {
+                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                } else {
+                    date = new Date(dateString);
+                }
             } else {
-                // Tentar como string de data
+                // Tentar conversão direta
                 date = new Date(dateString);
             }
             
             // Verificar se a data é válida
             if (isNaN(date.getTime())) {
-                console.warn('[MovimentacaoManager] Data inválida recebida:', dateString);
-                // Retornar data atual como fallback
+                console.warn('[formatDate] Data inválida após conversão:', dateString);
                 const agora = new Date();
                 return agora.toLocaleDateString('pt-BR', {
                     day: '2-digit',
@@ -1576,15 +1911,17 @@ class MovimentacaoManager {
                 });
             }
             
-            // Formatar para o padrão brasileiro DD/MM/YYYY
-            return date.toLocaleDateString('pt-BR', {
+            const formatted = date.toLocaleDateString('pt-BR', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
+            
+            console.log('[formatDate] Data formatada:', formatted);
+            return formatted;
+            
         } catch (error) {
-            console.error('[MovimentacaoManager] Erro ao formatar data:', error, 'Data recebida:', dateString);
-            // Retornar data atual como fallback em caso de erro
+            console.error('[formatDate] Erro ao formatar data:', error, 'Data recebida:', dateString);
             const agora = new Date();
             return agora.toLocaleDateString('pt-BR', {
                 day: '2-digit',
@@ -1596,7 +1933,7 @@ class MovimentacaoManager {
 
     formatTime(timeString) {
         if (!timeString) {
-            // Se não há hora, usar hora atual
+            console.warn('[formatTime] Hora não fornecida, usando hora atual');
             const agora = new Date();
             return agora.toLocaleTimeString('pt-BR', {
                 hour: '2-digit',
@@ -1605,19 +1942,25 @@ class MovimentacaoManager {
         }
         
         try {
-            // Se já está no formato HH:mm:ss, extrair apenas HH:mm
+            console.log('[formatTime] Hora recebida:', timeString, 'Tipo:', typeof timeString, 'É array:', Array.isArray(timeString));
+            
+            // Se já está no formato HH:mm:ss ou HH:mm, extrair apenas HH:mm
             if (typeof timeString === 'string' && timeString.includes(':')) {
                 const parts = timeString.split(':');
                 if (parts.length >= 2) {
-                    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    const formatted = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    console.log('[formatTime] Hora formatada de string:', formatted);
+                    return formatted;
                 }
             }
             
-            // Se é um array [H, M, S], formatar
+            // Se é um array [H, M, S] (formato LocalTime do Spring Boot)
             if (Array.isArray(timeString) && timeString.length >= 2) {
                 const hours = timeString[0].toString().padStart(2, '0');
                 const minutes = timeString[1].toString().padStart(2, '0');
-                return `${hours}:${minutes}`;
+                const formatted = `${hours}:${minutes}`;
+                console.log('[formatTime] Hora formatada de array:', formatted);
+                return formatted;
             }
             
             // Se é um objeto LocalTime do Jackson
@@ -1625,22 +1968,27 @@ class MovimentacaoManager {
                 if (timeString.hour !== undefined && timeString.minute !== undefined) {
                     const hours = timeString.hour.toString().padStart(2, '0');
                     const minutes = timeString.minute.toString().padStart(2, '0');
-                    return `${hours}:${minutes}`;
+                    const formatted = `${hours}:${minutes}`;
+                    console.log('[formatTime] Hora formatada de objeto:', formatted);
+                    return formatted;
                 }
             }
             
             // Tentar criar uma data e extrair a hora
             const date = new Date(timeString);
             if (!isNaN(date.getTime())) {
-                return date.toLocaleTimeString('pt-BR', {
+                const formatted = date.toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
+                console.log('[formatTime] Hora formatada de Date:', formatted);
+                return formatted;
             }
             
+            console.warn('[formatTime] Não foi possível formatar hora:', timeString);
             return '--:--';
         } catch (error) {
-            console.error('[MovimentacaoManager] Erro ao formatar hora:', error);
+            console.error('[formatTime] Erro ao formatar hora:', error);
             return '--:--';
         }
     }
@@ -1662,6 +2010,16 @@ class MovimentacaoManager {
         const mes = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() retorna 0-11
         const dia = String(date.getDate()).padStart(2, '0');
         return `${ano}-${mes}-${dia}`;
+    }
+
+    /**
+     * Formata hora local para formato HH:mm:ss (evita problemas de UTC)
+     */
+    formatLocalTimeForBackend(date = new Date()) {
+        const horas = String(date.getHours()).padStart(2, '0');
+        const minutos = String(date.getMinutes()).padStart(2, '0');
+        const segundos = String(date.getSeconds()).padStart(2, '0');
+        return `${horas}:${minutos}:${segundos}`;
     }
 
     getTipoIcon(tipo) {
