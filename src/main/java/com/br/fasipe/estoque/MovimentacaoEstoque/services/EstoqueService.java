@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.br.fasipe.estoque.MovimentacaoEstoque.models.Estoque;
+import com.br.fasipe.estoque.MovimentacaoEstoque.models.Setor;
 import com.br.fasipe.estoque.MovimentacaoEstoque.repository.EstoqueRepository;
+import com.br.fasipe.estoque.MovimentacaoEstoque.repository.SetorRepository;
 
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,6 +33,9 @@ public class EstoqueService extends BaseService {
 
     @Autowired
     private EstoqueRepository estoqueRepository;
+    
+    @Autowired
+    private SetorRepository setorRepository;
 
     /**
      * Busca todos os estoques com paginação otimizada
@@ -289,56 +294,100 @@ public class EstoqueService extends BaseService {
     /**
      * Busca estoque agrupado por setor para exibição no painel de movimentação
      * Retorna dados organizados por setor com informações completas
+     * IMPORTANTE: Retorna TODOS os produtos, incluindo os sem quantidade (0)
      * @return Lista de estoques organizados por setor
      */
     public List<java.util.Map<String, Object>> buscarEstoquePorSetor() {
         try {
-            log.info("Buscando estoque agrupado por setor para painel de movimentação");
+            log.info("========== BUSCANDO ESTOQUE POR SETOR ==========");
             
-            // Buscar apenas estoques de produtos COM almoxarifado (ID_ALMOX NOT NULL)
-            List<Estoque> estoques = estoqueRepository.findAll();
-            List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
+            // PRIMEIRO: Listar TODOS os setores cadastrados no banco
+            List<Setor> todosSetores = setorRepository.findAll();
+            log.info("========== SETORES CADASTRADOS NO BANCO ==========");
+            log.info("Total de setores no banco: {}", todosSetores.size());
+            for (Setor setor : todosSetores) {
+                log.info("🏢 Setor ID: {} | Nome: {}", setor.getId(), setor.getNome());
+            }
+            log.info("==================================================");
             
+            // Buscar TODOS os estoques com JOIN FETCH (carrega tudo de uma vez)
+            List<Estoque> estoques = estoqueRepository.findAllWithFullDetails();
+            
+            log.info("Total de registros de estoque encontrados: {}", estoques.size());
+            
+            // Agrupar por setor
+            java.util.Map<Integer, java.util.List<java.util.Map<String, Object>>> estoquePorSetorId = new java.util.LinkedHashMap<>();
+            
+            // Inicializar TODOS os setores (mesmo os vazios)
+            for (Setor setor : todosSetores) {
+                estoquePorSetorId.put(setor.getId(), new java.util.ArrayList<>());
+            }
+            
+            // Processar estoques e adicionar aos setores correspondentes
             for (Estoque estoque : estoques) {
-                // FILTRO: Só incluir produtos que:
-                // 1. Tenham produto associado
-                // 2. Tenham quantidade > 0
-                // 3. Tenham almoxarifado definido (ID_ALMOX NOT NULL)
                 if (estoque.getProduto() != null && 
-                    estoque.getQuantidadeEstoque() > 0 &&
-                    estoque.getProduto().getAlmoxarifado() != null) {
+                    estoque.getProduto().getAlmoxarifado() != null &&
+                    estoque.getProduto().getAlmoxarifado().getSetor() != null) {
                     
-                    String nomeProduto = estoque.getProduto().getNome();
-                    String descricaoProduto = estoque.getProduto().getDescricao();
+                    Integer setorId = estoque.getProduto().getAlmoxarifado().getSetor().getId();
+                    String setorNome = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
+                    String produtoNome = estoque.getProduto().getNome();
+                    String produtoDesc = estoque.getProduto().getDescricao();
+                    Integer quantidade = estoque.getQuantidadeEstoque() != null ? estoque.getQuantidadeEstoque() : 0;
                     
-                    // Usar nome do almoxarifado como setor
-                    String nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
-                    int setorId = estoque.getProduto().getAlmoxarifado().getId();
-                    
-                    // Se o almoxarifado tem setor definido, usar o nome do setor
-                    if (estoque.getProduto().getAlmoxarifado().getSetor() != null) {
-                        nomeSetor = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
-                        setorId = estoque.getProduto().getAlmoxarifado().getSetor().getId();
-                    }
-                    
+                    // Criar item de estoque
                     java.util.Map<String, Object> itemEstoque = new java.util.HashMap<>();
                     itemEstoque.put("id", estoque.getId());
-                    itemEstoque.put("produto", java.util.Map.of(
-                        "id", estoque.getProduto().getId(),
-                        "nome", nomeProduto,
-                        "descricao", descricaoProduto != null ? descricaoProduto : ""
-                    ));
-                    itemEstoque.put("quantidadeEstoque", estoque.getQuantidadeEstoque());
-                    itemEstoque.put("setor", java.util.Map.of(
-                        "id", setorId,
-                        "nome", nomeSetor
-                    ));
                     
-                    resultado.add(itemEstoque);
+                    // Produto
+                    java.util.Map<String, Object> produtoMap = new java.util.HashMap<>();
+                    produtoMap.put("id", estoque.getProduto().getId());
+                    produtoMap.put("nome", produtoNome);
+                    produtoMap.put("descricao", produtoDesc != null ? produtoDesc : "");
+                    itemEstoque.put("produto", produtoMap);
+                    
+                    // Quantidade
+                    itemEstoque.put("quantidadeEstoque", quantidade);
+                    
+                    // Setor
+                    java.util.Map<String, Object> setorMap = new java.util.HashMap<>();
+                    setorMap.put("id", setorId);
+                    setorMap.put("nome", setorNome);
+                    itemEstoque.put("setor", setorMap);
+                    
+                    // Adicionar ao setor correspondente
+                    if (estoquePorSetorId.containsKey(setorId)) {
+                        estoquePorSetorId.get(setorId).add(itemEstoque);
+                    }
+                    
+                    log.info("✅ Produto: {} | Setor: {} | Qtd: {}", produtoNome, setorNome, quantidade);
                 }
             }
             
-            log.info("Retornando {} registros de estoque por setor (apenas produtos com almoxarifado)", resultado.size());
+            // Converter para lista plana incluindo TODOS os setores
+            List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
+            
+            for (Setor setor : todosSetores) {
+                java.util.List<java.util.Map<String, Object>> produtosDoSetor = estoquePorSetorId.get(setor.getId());
+                
+                if (produtosDoSetor != null && !produtosDoSetor.isEmpty()) {
+                    // Setor COM produtos - adicionar todos
+                    resultado.addAll(produtosDoSetor);
+                    log.info("🏢 Setor {} : {} produtos", setor.getNome(), produtosDoSetor.size());
+                } else {
+                    // Setor SEM produtos - adicionar marcador vazio
+                    java.util.Map<String, Object> setorVazio = new java.util.HashMap<>();
+                    setorVazio.put("id", null);
+                    setorVazio.put("produto", java.util.Map.of("id", 0, "nome", "Nenhum produto neste setor", "descricao", ""));
+                    setorVazio.put("quantidadeEstoque", 0);
+                    setorVazio.put("setor", java.util.Map.of("id", setor.getId(), "nome", setor.getNome()));
+                    resultado.add(setorVazio);
+                    log.info("🏢 Setor {} : 0 produtos (vazio)", setor.getNome());
+                }
+            }
+            
+            log.info("========== RETORNANDO {} REGISTROS (incluindo setores vazios) ==========", resultado.size());
+            
             return resultado;
             
         } catch (Exception e) {
@@ -409,65 +458,191 @@ public class EstoqueService extends BaseService {
     /**
      * Busca estoque por setor em tempo real (SEM CACHE)
      * Força consulta direta ao banco para garantir dados atualizados após movimentações
+     * IMPORTANTE: Retorna TODOS os produtos, incluindo os sem quantidade (0)
      * @return Lista de estoques organizados por setor com dados em tempo real
      */
     @CacheEvict(value = "estoques", allEntries = true) // Limpa cache antes da consulta
     public List<java.util.Map<String, Object>> buscarEstoquePorSetorSemCache() {
         try {
-            log.info("TEMPO REAL: Buscando estoque por setor SEM CACHE - dados atualizados");
+            log.info("========== TEMPO REAL: BUSCANDO ESTOQUE (SEM CACHE) ==========");
             
-            // Força consulta direta ao repositório
-            List<Estoque> estoques = estoqueRepository.findAll();
+            // Força consulta direta com JOIN FETCH
+            List<Estoque> estoques = estoqueRepository.findAllWithFullDetails();
             List<java.util.Map<String, Object>> resultado = new java.util.ArrayList<>();
             
             log.info("TEMPO REAL: Consultados {} registros do banco de dados", estoques.size());
             
             for (Estoque estoque : estoques) {
-                // FILTRO: Só incluir produtos que:
-                // 1. Tenham produto associado
-                // 2. Tenham almoxarifado definido (ID_ALMOX NOT NULL)
+                // Agora TUDO já está carregado graças ao JOIN FETCH
                 if (estoque.getProduto() != null && 
                     estoque.getProduto().getAlmoxarifado() != null) {
                     
                     String nomeProduto = estoque.getProduto().getNome();
                     String descricaoProduto = estoque.getProduto().getDescricao();
                     
-                    // Usar nome do almoxarifado como setor
-                    String nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
-                    int setorId = estoque.getProduto().getAlmoxarifado().getId();
+                    // Obter setor - AGORA JÁ ESTÁ CARREGADO!
+                    String nomeSetor = "Sem Setor";
+                    Integer setorId = null;
                     
-                    // Se o almoxarifado tem setor definido, usar o nome do setor
                     if (estoque.getProduto().getAlmoxarifado().getSetor() != null) {
                         nomeSetor = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
                         setorId = estoque.getProduto().getAlmoxarifado().getSetor().getId();
+                        log.info("TEMPO REAL ✅ Produto: {} | Setor: {} (ID: {}) | Qtd: {}", 
+                                nomeProduto, nomeSetor, setorId, estoque.getQuantidadeEstoque());
+                    } else {
+                        // Fallback improvável
+                        nomeSetor = estoque.getProduto().getAlmoxarifado().getNome();
+                        setorId = estoque.getProduto().getAlmoxarifado().getId();
+                        log.warn("TEMPO REAL ⚠️ Produto: {} | Almoxarifado SEM setor: {} (ID: {})", 
+                                nomeProduto, nomeSetor, setorId);
                     }
                     
+                    // Criar mapa de item de estoque
                     java.util.Map<String, Object> itemEstoque = new java.util.HashMap<>();
                     itemEstoque.put("id", estoque.getId());
-                    itemEstoque.put("produto", java.util.Map.of(
-                        "id", estoque.getProduto().getId(),
-                        "nome", nomeProduto,
-                        "descricao", descricaoProduto != null ? descricaoProduto : ""
-                    ));
-                    itemEstoque.put("quantidadeEstoque", estoque.getQuantidadeEstoque());
-                    itemEstoque.put("setor", java.util.Map.of(
-                        "id", setorId,
-                        "nome", nomeSetor
-                    ));
+                    
+                    // Informações do produto
+                    java.util.Map<String, Object> produtoMap = new java.util.HashMap<>();
+                    produtoMap.put("id", estoque.getProduto().getId());
+                    produtoMap.put("nome", nomeProduto);
+                    produtoMap.put("descricao", descricaoProduto != null ? descricaoProduto : "");
+                    itemEstoque.put("produto", produtoMap);
+                    
+                    // Quantidade (inclui zeros) - IMPORTANTE PARA ATUALIZAÇÃO EM TEMPO REAL
+                    Integer quantidade = estoque.getQuantidadeEstoque() != null ? estoque.getQuantidadeEstoque() : 0;
+                    itemEstoque.put("quantidadeEstoque", quantidade);
+                    
+                    // Informações do setor
+                    java.util.Map<String, Object> setorMap = new java.util.HashMap<>();
+                    setorMap.put("id", setorId);
+                    setorMap.put("nome", nomeSetor);
+                    itemEstoque.put("setor", setorMap);
                     
                     resultado.add(itemEstoque);
-                    
-                    log.debug("TEMPO REAL: Produto {} no setor {} com quantidade {}", 
-                             nomeProduto, nomeSetor, estoque.getQuantidadeEstoque());
                 }
             }
             
-            log.info("TEMPO REAL: Retornando {} registros de estoque atualizados por setor", resultado.size());
+            log.info("========== TEMPO REAL: RETORNANDO {} REGISTROS ==========", resultado.size());
+            
+            // LOG RESUMO POR SETOR
+            java.util.Map<String, Integer> resumoPorSetor = new java.util.LinkedHashMap<>();
+            for (java.util.Map<String, Object> item : resultado) {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> setor = (java.util.Map<String, Object>) item.get("setor");
+                String nomeSetor = (String) setor.get("nome");
+                resumoPorSetor.put(nomeSetor, resumoPorSetor.getOrDefault(nomeSetor, 0) + 1);
+            }
+            
+            log.info("========== TEMPO REAL: RESUMO POR SETOR ==========");
+            for (java.util.Map.Entry<String, Integer> entry : resumoPorSetor.entrySet()) {
+                log.info("TEMPO REAL 🏢 Setor: {} | Total produtos: {}", entry.getKey(), entry.getValue());
+            }
+            log.info("==================================================");
+            
             return resultado;
             
         } catch (Exception e) {
             log.error("TEMPO REAL: Erro ao buscar estoque por setor sem cache: {}", e.getMessage(), e);
             throw new RuntimeException("Erro ao buscar estoque em tempo real", e);
+        }
+    }
+    
+    /**
+     * DIAGNÓSTICO COMPLETO - Mostra TODOS os produtos, almoxarifados e setores
+     * Usa query SQL direta para ver TUDO no banco
+     */
+    public java.util.Map<String, Object> diagnosticoCompleto() {
+        try {
+            log.info("========== INICIANDO DIAGNÓSTICO COMPLETO ==========");
+            
+            java.util.Map<String, Object> resultado = new java.util.LinkedHashMap<>();
+            
+            // 1. TODOS OS SETORES
+            List<Setor> todosSetores = setorRepository.findAll();
+            resultado.put("totalSetores", todosSetores.size());
+            resultado.put("setores", todosSetores.stream()
+                .map(s -> java.util.Map.of("id", s.getId(), "nome", s.getNome()))
+                .collect(java.util.stream.Collectors.toList()));
+            
+            log.info("Total de setores: {}", todosSetores.size());
+            for (Setor setor : todosSetores) {
+                log.info("🏢 Setor: {} (ID: {})", setor.getNome(), setor.getId());
+            }
+            
+            // 2. TODOS OS ESTOQUES com detalhes
+            List<Estoque> todosEstoques = estoqueRepository.findAllWithFullDetails();
+            resultado.put("totalEstoques", todosEstoques.size());
+            
+            log.info("Total de estoques: {}", todosEstoques.size());
+            
+            java.util.List<java.util.Map<String, Object>> estoquesDetalhados = new java.util.ArrayList<>();
+            java.util.Map<String, Integer> contagemPorSetor = new java.util.LinkedHashMap<>();
+            
+            for (Estoque estoque : todosEstoques) {
+                java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+                item.put("estoqueId", estoque.getId());
+                item.put("quantidade", estoque.getQuantidadeEstoque());
+                
+                if (estoque.getProduto() != null) {
+                    item.put("produtoId", estoque.getProduto().getId());
+                    item.put("produtoNome", estoque.getProduto().getNome());
+                    
+                    if (estoque.getProduto().getAlmoxarifado() != null) {
+                        item.put("almoxarifadoId", estoque.getProduto().getAlmoxarifado().getId());
+                        item.put("almoxarifadoNome", estoque.getProduto().getAlmoxarifado().getNome());
+                        
+                        if (estoque.getProduto().getAlmoxarifado().getSetor() != null) {
+                            String setorNome = estoque.getProduto().getAlmoxarifado().getSetor().getNome();
+                            item.put("setorId", estoque.getProduto().getAlmoxarifado().getSetor().getId());
+                            item.put("setorNome", setorNome);
+                            item.put("status", "✅ COMPLETO");
+                            
+                            contagemPorSetor.put(setorNome, contagemPorSetor.getOrDefault(setorNome, 0) + 1);
+                            
+                            log.info("✅ Estoque {} | Produto: {} | Almox: {} | Setor: {} | Qtd: {}", 
+                                    estoque.getId(),
+                                    estoque.getProduto().getNome(),
+                                    estoque.getProduto().getAlmoxarifado().getNome(),
+                                    setorNome,
+                                    estoque.getQuantidadeEstoque());
+                        } else {
+                            item.put("status", "⚠️ SEM SETOR");
+                            log.warn("⚠️ Estoque {} | Produto: {} | Almox: {} | SEM SETOR", 
+                                    estoque.getId(),
+                                    estoque.getProduto().getNome(),
+                                    estoque.getProduto().getAlmoxarifado().getNome());
+                        }
+                    } else {
+                        item.put("status", "❌ SEM ALMOXARIFADO");
+                        log.error("❌ Estoque {} | Produto: {} | SEM ALMOXARIFADO", 
+                                estoque.getId(),
+                                estoque.getProduto().getNome());
+                    }
+                } else {
+                    item.put("status", "❌ SEM PRODUTO");
+                    log.error("❌ Estoque {} | SEM PRODUTO", estoque.getId());
+                }
+                
+                estoquesDetalhados.add(item);
+            }
+            
+            resultado.put("estoques", estoquesDetalhados);
+            resultado.put("produtosPorSetor", contagemPorSetor);
+            
+            log.info("========== RESUMO DO DIAGNÓSTICO ==========");
+            log.info("Total de setores cadastrados: {}", todosSetores.size());
+            log.info("Total de estoques: {}", todosEstoques.size());
+            log.info("========== PRODUTOS POR SETOR ==========");
+            for (java.util.Map.Entry<String, Integer> entry : contagemPorSetor.entrySet()) {
+                log.info("🏢 {} : {} produtos", entry.getKey(), entry.getValue());
+            }
+            log.info("=========================================");
+            
+            return resultado;
+            
+        } catch (Exception e) {
+            log.error("Erro no diagnóstico completo: {}", e.getMessage(), e);
+            throw new RuntimeException("Erro no diagnóstico completo", e);
         }
     }
 }

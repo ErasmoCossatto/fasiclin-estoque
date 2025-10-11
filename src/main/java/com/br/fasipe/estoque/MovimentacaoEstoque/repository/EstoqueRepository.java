@@ -120,5 +120,14 @@ public interface EstoqueRepository extends JpaRepository<Estoque, Integer> {
     })
     List<Produto> findProdutosDisponiveis(@Param("idSetor") Integer idSetor);
 
+    // NOVO: Busca TODOS os estoques com TODAS as relações carregadas (JOIN FETCH)
+    // Carrega: Estoque → Produto → Almoxarifado → Setor em UMA ÚNICA query
+    @Query("SELECT DISTINCT e FROM Estoque e " +
+           "LEFT JOIN FETCH e.produto p " +
+           "LEFT JOIN FETCH p.almoxarifado a " +
+           "LEFT JOIN FETCH a.setor s " +
+           "ORDER BY s.nome, p.nome")
+    List<Estoque> findAllWithFullDetails();
     
 }
+

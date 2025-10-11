@@ -287,4 +287,20 @@ public class EstoqueController {
                 .body("Erro ao buscar estoque em tempo real: " + e.getMessage());
         }
     }
+    
+    /**
+     * ENDPOINT DE DIAGNÓSTICO - Mostra TODOS os produtos e seus setores
+     */
+    @GetMapping("/diagnostico")
+    public ResponseEntity<?> diagnostico() {
+        try {
+            log.info("========== DIAGNÓSTICO COMPLETO ==========");
+            var resultado = estoqueService.diagnosticoCompleto();
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            log.error("Erro no diagnóstico: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                .body("Erro no diagnóstico: " + e.getMessage());
+        }
+    }
 }

@@ -336,10 +336,19 @@ class MovimentacaoManager {
     async loadEstoquePorSetor() {
         try {
             console.log('[ESTOQUE_SETOR] 🔄 Iniciando carregamento de estoque por setor...');
-            console.log('[ESTOQUE_SETOR] Endpoint:', `${this.apiManager.baseURL}/estoque/por-setor`);
+            console.log('[ESTOQUE_SETOR] Endpoint primário:', `${this.apiManager.baseURL}/estoque/por-setor`);
             
-            // Usar o endpoint que retorna estoque por setor
-            const response = await this.apiManager.request('/estoque/por-setor');
+            let response = null;
+            
+            // Tentar primeiro o endpoint específico
+            try {
+                response = await this.apiManager.request('/estoque/por-setor');
+                console.log('[ESTOQUE_SETOR] ✅ Endpoint /estoque/por-setor funcionou');
+            } catch (error) {
+                console.warn('[ESTOQUE_SETOR] ⚠️ Endpoint /estoque/por-setor não disponível, tentando /estoque');
+                // Fallback para endpoint tradicional
+                response = await this.apiManager.request('/estoque');
+            }
             
             console.log('[ESTOQUE_SETOR] ========== RESPOSTA COMPLETA DA API ==========');
             console.log('[ESTOQUE_SETOR] Response success:', response.success);
@@ -349,7 +358,19 @@ class MovimentacaoManager {
             console.log('[ESTOQUE_SETOR] ===============================================');
             
             if (response.success && response.data) {
-                this.estoquePorSetor = Array.isArray(response.data) ? response.data : [response.data];
+                // Garantir que os dados sejam um array
+                let dados = response.data;
+                
+                // Se os dados tiverem estrutura paginada (content), usar o content
+                if (dados.content && Array.isArray(dados.content)) {
+                    console.log('[ESTOQUE_SETOR] Estrutura paginada detectada, usando content');
+                    dados = dados.content;
+                } else if (dados.data && Array.isArray(dados.data)) {
+                    console.log('[ESTOQUE_SETOR] Estrutura com data interno detectada');
+                    dados = dados.data;
+                }
+                
+                this.estoquePorSetor = Array.isArray(dados) ? dados : [dados];
                 console.log(`[ESTOQUE_SETOR] ✅ ${this.estoquePorSetor.length} registros de estoque por setor carregados`);
                 
                 // Log COMPLETO de TODOS os itens para debug
@@ -358,24 +379,27 @@ class MovimentacaoManager {
                     this.estoquePorSetor.forEach((item, index) => {
                         console.log(`[ESTOQUE_SETOR] Item ${index + 1}:`, {
                             id: item.id,
-                            produto: item.produto,
-                            setor: item.setor,
-                            quantidade: item.quantidadeEstoque
+                            produto: item.produto?.nome || item.nomeProduto || 'N/A',
+                            setor: item.setor?.nome || item.nomeSetor || 'N/A',
+                            quantidade: item.quantidadeEstoque || item.quantidade || 0
                         });
                     });
                     console.log('[ESTOQUE_SETOR] ================================================');
                 } else {
                     console.warn('[ESTOQUE_SETOR] ⚠️ Array está vazio! Nenhum item encontrado no estoque por setor!');
+                    this.showNotification('⚠️ Nenhum produto em estoque encontrado. Verifique se há dados cadastrados.', 'warning', 4000);
                 }
             } else {
                 console.warn('[ESTOQUE_SETOR] ⚠️ Resposta sem sucesso ou sem dados:', response);
                 this.estoquePorSetor = [];
+                this.showNotification('⚠️ Não foi possível carregar o estoque. Verifique a conexão com o servidor.', 'warning', 4000);
             }
             
         } catch (error) {
             console.error('[ESTOQUE_SETOR] ❌ Erro ao carregar estoque por setor:', error);
             console.error('[ESTOQUE_SETOR] Stack trace:', error.stack);
             this.estoquePorSetor = [];
+            this.showNotification('❌ Erro ao carregar estoque: ' + error.message, 'error', 5000);
         }
     }
 
@@ -1634,76 +1658,92 @@ class MovimentacaoManager {
      */
     renderStockPanel() {
         const stockContainer = document.getElementById('stock-by-sector');
-        if (!stockContainer) {
-            console.warn('[RENDER_STOCK] ❌ Container de estoque não encontrado');
-            return;
-        }
+        if (!stockContainer) return;
 
-        console.log('[RENDER_STOCK] 🎨 Iniciando renderização do painel de estoque...');
-        console.log('[RENDER_STOCK] Dados disponíveis:', {
-            existe: !!this.estoquePorSetor,
-            ehArray: Array.isArray(this.estoquePorSetor),
-            quantidade: this.estoquePorSetor?.length || 0
-        });
-        console.log('[RENDER_STOCK] Dados completos:', this.estoquePorSetor);
+        console.log('=== RENDERIZANDO PAINEL ===');
+        console.log('Total de itens:', this.estoquePorSetor?.length);
 
         if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
-            console.warn('[RENDER_STOCK] ⚠️ Nenhum dado de estoque para renderizar');
-            stockContainer.innerHTML = '<div class="loading-stocks">❌ Nenhum produto em estoque encontrado. Verifique se há dados no banco.</div>';
+            stockContainer.innerHTML = '<div class="loading-stocks"><p>Nenhum produto encontrado</p></div>';
             return;
         }
 
-        // Agrupar estoque por setor
-        console.log('[RENDER_STOCK] Agrupando estoque por setor...');
-        const stockBySetor = this.groupStockBySetor(this.estoquePorSetor);
-        console.log('[RENDER_STOCK] Agrupado por setor:', stockBySetor);
-        
+        // Agrupar por setor - SIMPLES
+        const porSetor = {};
+        this.estoquePorSetor.forEach(item => {
+            const setor = item.setor?.nome || 'Sem Setor';
+            if (!porSetor[setor]) porSetor[setor] = [];
+            
+            // Só adicionar se não for marcador de setor vazio
+            if (item.id !== null) {
+                porSetor[setor].push(item);
+            }
+        });
+
+        console.log('Setores agrupados:', Object.keys(porSetor));
+
+        // Renderizar HTML - TODOS os setores, mesmo vazios
         let html = '';
         
-        // Renderizar apenas setores que realmente têm produtos
-        // Não forçar a exibição de setores vazios
-        const setoresComProdutos = Object.keys(stockBySetor).filter(setorNome => {
-            const produtos = stockBySetor[setorNome] || [];
-            return produtos.length > 0; // Apenas setores com produtos
-        });
-        
-        console.log('[RENDER_STOCK] Setores com produtos:', setoresComProdutos);
-        
-        if (setoresComProdutos.length === 0) {
-            console.warn('[RENDER_STOCK] ⚠️ Nenhum setor com produtos encontrado');
-            stockContainer.innerHTML = '<div class="loading-stocks">⚠️ Nenhum produto encontrado nos setores</div>';
-            return;
-        }
-        
-        // Ordem preferida para setores (apenas os que existem)
-        const ordemPreferida = ['Compras', 'Estoque'];
-        
-        // Primeiro, renderizar setores na ordem preferida (se existirem e tiverem produtos)
-        ordemPreferida.forEach(setorNome => {
-            if (setoresComProdutos.includes(setorNome)) {
-                const produtos = stockBySetor[setorNome];
-                console.log(`[RENDER_STOCK] Renderizando setor: ${setorNome} com ${produtos.length} produtos`);
-                html += this.renderSetorGroup(setorNome, produtos);
-                setoresComProdutos.splice(setoresComProdutos.indexOf(setorNome), 1);
+        // Garantir que TODOS os setores apareçam (mesmo vazios)
+        const setoresUnicos = new Set();
+        this.estoquePorSetor.forEach(item => {
+            if (item.setor?.nome) {
+                setoresUnicos.add(item.setor.nome);
             }
         });
         
-        // Depois, renderizar outros setores com produtos
-        setoresComProdutos.forEach(setorNome => {
-            const produtos = stockBySetor[setorNome];
-            console.log(`[RENDER_STOCK] Renderizando setor: ${setorNome} com ${produtos.length} produtos`);
-            html += this.renderSetorGroup(setorNome, produtos);
+        const setoresOrdenados = Array.from(setoresUnicos).sort();
+        
+        setoresOrdenados.forEach(setor => {
+            const produtos = porSetor[setor] || [];
+            const totalQtd = produtos.reduce((sum, p) => sum + (p.quantidadeEstoque || 0), 0);
+            
+            html += `
+                <div class="stock-group">
+                    <h5 class="stock-group-title">
+                        🏢 ${setor} 
+                        <span class="stock-group-summary">(${produtos.length} produtos, ${totalQtd} unidades)</span>
+                    </h5>
+                    <div class="stock-group-content">
+            `;
+            
+            if (produtos.length === 0) {
+                html += `
+                    <div class="stock-item" style="opacity: 0.6; font-style: italic;">
+                        <div class="stock-item-header">
+                            <span class="stock-item-name">Nenhum produto neste setor</span>
+                            <span class="stock-item-quantity low-stock">0</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                produtos.forEach(item => {
+                    const prod = item.produto || {};
+                    const qtd = item.quantidadeEstoque || 0;
+                    const cssClass = qtd <= 10 ? 'low-stock' : qtd <= 50 ? 'medium-stock' : 'good-stock';
+                    
+                    html += `
+                        <div class="stock-item">
+                            <div class="stock-item-header">
+                                <span class="stock-item-name">${prod.nome || 'Sem nome'}</span>
+                                <span class="stock-item-quantity ${cssClass}">${qtd}</span>
+                            </div>
+                            <div class="stock-item-sector">${setor}</div>
+                            ${prod.descricao ? `<div class="stock-item-description">${prod.descricao}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
         });
 
-        stockContainer.innerHTML = html || '<div class="loading-stocks">⚠️ Erro ao renderizar estoque</div>';
-        console.log('[RENDER_STOCK] ✅ HTML renderizado:', html.length > 0 ? 'OK (' + html.length + ' chars)' : 'VAZIO');
-        
-        // Adicionar efeito visual de atualização
-        stockContainer.style.opacity = '0.7';
-        setTimeout(() => {
-            stockContainer.style.transition = 'opacity 0.3s ease';
-            stockContainer.style.opacity = '1';
-        }, 100);
+        stockContainer.innerHTML = html;
+        console.log('✅ Painel renderizado com TODOS os setores!');
     }
 
     /**
