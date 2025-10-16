@@ -109,7 +109,12 @@
             <div class="modal-body modal-two-columns">
                 <!-- Painel de Estoque por Setor (Esquerda) -->
                 <div class="stock-panel">
-                    <h4>📊 Estoque por Setor</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h4 style="margin: 0;">📊 Estoque por Setor</h4>
+                        <button type="button" id="refresh-stock-btn" class="btn" style="padding: 8px 16px; font-size: 13px;" title="Atualizar estoque em tempo real">
+                            🔄 Atualizar
+                        </button>
+                    </div>
                     <div id="stock-by-sector" class="stock-list">
                         <div class="loading-stocks">Carregando estoques...</div>
                     </div>
