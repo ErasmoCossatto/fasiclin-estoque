@@ -1,24 +1,55 @@
 /**
- * ApiManager - Gerenciador de APIs para o sistema de estoque
- * Centraliza todas as operações HTTP com o backend Spring Boot
+ * ApiManager - Gerenciador centralizado de APIs REST para o sistema de estoque
+ * 
+ * @class ApiManager
+ * @description Centraliza todas as operações HTTP com o backend Spring Boot.
+ *              Fornece métodos para movimentações, produtos, almoxarifados, estoques e lotes.
+ *              Implementa tratamento de erros padronizado e logging de requisições.
+ * 
+ * @author Sistema de Estoque FasiClin
+ * @version 2.0.0
+ * 
+ * @property {string} baseURL - URL base da API (http://localhost:8080/api)
+ * @property {Object} headers - Headers padrão para requisições (Content-Type, Accept)
+ * 
+ * @example
+ * // Instanciado globalmente como window.apiManager
+ * const apiManager = new ApiManager();
+ * const movimentacoes = await apiManager.listarMovimentacoes();
  */
 class ApiManager {
+    /**
+     * Construtor do ApiManager
+     * @constructor
+     * @description Inicializa configurações base da API (URL e headers)
+     */
     constructor() {
-        // Configuração base da API
+        /** @type {string} URL base do backend Spring Boot */
         this.baseURL = 'http://localhost:8080/api';
+
+        /** @type {Object} Headers padrão para todas as requisições */
         this.headers = {
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': 'Basic ' + btoa('admin:admin'), // Autenticação básica
-            'Access-Control-Allow-Origin': '*'
+            'Accept': 'application/json'
         };
     }
 
     /**
-     * Método genérico para fazer requisições HTTP com melhor tratamento de erros
-     * @param {string} endpoint - Endpoint da API
-     * @param {Object} options - Opções da requisição (method, body, etc.)
-     * @returns {Promise} - Promise com a resposta da API
+     * Método genérico para fazer requisições HTTP com tratamento de erros
+     * @async
+     * @param {string} endpoint - Endpoint da API (ex: '/movimentacao/historico')
+     * @param {Object} [options={}] - Opções da requisição (method, body, headers, etc.)
+     * @param {string} [options.method='GET'] - Método HTTP (GET, POST, PUT, DELETE)
+     * @param {string} [options.body] - Corpo da requisição (JSON stringified)
+     * @param {Object} [options.headers] - Headers adicionais
+     * @returns {Promise<Object>} Promise com {success: boolean, data: any, error?: string}
+     * @throws {Error} Se houver falha na comunicação com o servidor
+     * 
+     * @example
+     * const result = await apiManager.request('/produtos', { method: 'GET' });
+     * if (result.success) {
+     *   console.log('Produtos:', result.data);
+     * }
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
@@ -34,10 +65,10 @@ class ApiManager {
                 console.log('[API] Request body:', config.body);
             }
             const response = await fetch(url, config);
-            
+
             // Log do status da resposta
             console.log(`[API] Response status: ${response.status} ${response.statusText}`);
-            
+
             if (!response.ok) {
                 // Tentar obter detalhes do erro
                 let errorDetails;
@@ -57,7 +88,7 @@ class ApiManager {
                 console.log('[API] Response data:', data);
                 return { success: true, data: data };
             }
-            
+
             return { success: true, data: null };
         } catch (error) {
             console.error(`[API Error] ${config.method || 'GET'} ${url}:`, error);
@@ -68,16 +99,18 @@ class ApiManager {
     // ===== ENDPOINTS DE MOVIMENTAÇÃO =====
 
     /**
-     * Lista todas as movimentações
+     * Lista histórico de movimentações
+     * @param {number} almoxarifadoId - Filtrar por almoxarifado (opcional)
      * @returns {Promise<Array>} - Lista de movimentações
      */
-    async listarMovimentacoes() {
+    async listarMovimentacoes(almoxarifadoId = null) {
         console.log('[API] Iniciando requisição para listar movimentações...');
-        
+
         try {
-            const result = await this.request('/movimentacoes');
+            const url = almoxarifadoId ? `/movimentacao/historico?almoxarifadoId=${almoxarifadoId}` : '/movimentacao/historico';
+            const result = await this.request(url);
             console.log('[API] Resposta completa de movimentações:', result);
-            
+
             if (result.success) {
                 console.log('[API] ✅ Movimentações carregadas com sucesso');
                 return result;
@@ -92,285 +125,172 @@ class ApiManager {
     }
 
     /**
-     * Busca movimentação por ID
-     * @param {number} id - ID da movimentação
-     * @returns {Promise<Object>} - Movimentação encontrada
+     * Transfere estoque entre almoxarifados
+     * @async
+     * @param {Object} transferencia - Dados da transferência
+     * @param {number} transferencia.produtoId - ID do produto
+     * @param {number} transferencia.almoxarifadoOrigemId - ID do almoxarifado de origem
+     * @param {number} transferencia.almoxarifadoDestinoId - ID do almoxarifado de destino
+     * @param {number} transferencia.quantidade - Quantidade a transferir
+     * @param {number} [transferencia.loteId] - ID do lote (opcional)
+     * @returns {Promise<Object>} Movimentação criada com sucesso
+     * @throws {Error} Se houver estoque insuficiente ou parâmetros inválidos
      */
-    async buscarMovimentacaoPorId(id) {
-        return this.request(`/movimentacoes/${id}`);
-    }
-
-    /**
-     * Cria uma nova movimentação
-     * @param {Object} movimentacao - Dados da movimentação
-     * @returns {Promise<Object>} - Movimentação criada
-     */
-    async criarMovimentacao(movimentacao) {
-        return this.request('/movimentacoes', {
+    async transferirEstoque(transferencia) {
+        return this.request('/movimentacao/transferir', {
             method: 'POST',
-            body: JSON.stringify(movimentacao)
+            body: JSON.stringify(transferencia)
         });
     }
 
     /**
-     * Atualiza uma movimentação existente
-     * @param {number} id - ID da movimentação
-     * @param {Object} movimentacao - Novos dados da movimentação
-     * @returns {Promise<Object>} - Movimentação atualizada
+     * Registra entrada de estoque em um almoxarifado
+     * @async
+     * @param {Object} entrada - Dados da entrada
+     * @param {number} entrada.produtoId - ID do produto
+     * @param {number} entrada.almoxarifadoId - ID do almoxarifado de destino
+     * @param {number} entrada.quantidade - Quantidade a registrar
+     * @param {number} [entrada.loteId] - ID do lote (opcional)
+     * @returns {Promise<Object>} Movimentação de entrada criada
+     * @throws {Error} Se houver parâmetros inválidos
      */
-    async atualizarMovimentacao(id, movimentacao) {
-        return this.request(`/movimentacoes/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(movimentacao)
+    async registrarEntrada(entrada) {
+        return this.request('/movimentacao/entrada', {
+            method: 'POST',
+            body: JSON.stringify(entrada)
         });
     }
 
-    /**
-     * Remove uma movimentação
-     * @param {number} id - ID da movimentação
-     * @returns {Promise<void>}
-     */
-    async removerMovimentacao(id) {
-        return this.request(`/movimentacoes/${id}`, {
-            method: 'DELETE'
-        });
-    }
+    // ===== ENDPOINTS DE ALMOXARIFADOS =====
 
     /**
-     * Busca movimentações por quantidade
-     * @param {number} quantidade - Quantidade a buscar
-     * @returns {Promise<Array>} - Lista de movimentações
+     * Lista todos os almoxarifados cadastrados
+     * @async
+     * @returns {Promise<Array<Object>>} Array de almoxarifados com propriedades id, nome, ativo, setor
+     * @description Busca todos os almoxarifados independente do status ativo/inativo.
+     *              Retorna array vazio em caso de erro.
      */
-    async buscarMovimentacoesPorQuantidade(quantidade) {
-        return this.request(`/movimentacoes/quantidade/${quantidade}`);
-    }
-
-    /**
-     * Busca movimentações por intervalo de quantidade
-     * @param {number} quantidadeMinima - Quantidade mínima
-     * @param {number} quantidadeMaxima - Quantidade máxima
-     * @returns {Promise<Array>} - Lista de movimentações
-     */
-    async buscarMovimentacoesPorIntervaloQuantidade(quantidadeMinima, quantidadeMaxima) {
-        return this.request(`/movimentacoes/quantidade/entre?quantidadeMinima=${quantidadeMinima}&quantidadeMaxima=${quantidadeMaxima}`);
-    }
-
-    /**
-     * Busca movimentações por data
-     * @param {string} data - Data no formato YYYY-MM-DD
-     * @returns {Promise<Array>} - Lista de movimentações
-     */
-    async buscarMovimentacoesPorData(data) {
-        return this.request(`/movimentacoes/data/${data}`);
-    }
-
-    /**
-     * Busca movimentações por intervalo de data
-     * @param {string} dataInicial - Data inicial no formato YYYY-MM-DD
-     * @param {string} dataFinal - Data final no formato YYYY-MM-DD
-     * @returns {Promise<Array>} - Lista de movimentações
-     */
-    async buscarMovimentacoesPorIntervaloData(dataInicial, dataFinal) {
-        return this.request(`/movimentacoes/data/entre?dataInicial=${dataInicial}&dataFinal=${dataFinal}`);
-    }
-
-    /**
-     * Busca movimentações por tipo
-     * @param {string} tipo - Tipo da movimentação (ENTRADA ou SAIDA)
-     * @returns {Promise<Array>} - Lista de movimentações
-     */
-    async buscarMovimentacoesPorTipo(tipo) {
-        return this.request(`/movimentacoes/tipo/${tipo}`);
-    }
-
-    // ===== ENDPOINTS DE ESTOQUE =====
-
-    /**
-     * Lista estoques com paginação (otimizado para movimentações)
-     * @param {Object} params - Parâmetros de paginação
-     * @returns {Promise<Object>} - Página de estoques com produtos
-     */
-    async listarEstoques(params = {}) {
+    async listarAlmoxarifados() {
         try {
-            console.log(`[ESTOQUE] Chamando endpoint: /estoque`);
-            const result = await this.request('/estoque');
-            
-            console.log(`[ESTOQUE] Resposta bruta da API:`, result);
-            
-            if (result.success && result.data) {
-                // Retorna os dados diretamente, seja paginado ou não
-                console.log(`[ESTOQUE] ✅ Sucesso na API - Retornando dados:`, result.data);
-                return result.data;
-            } else {
-                console.warn('[ESTOQUE] Resposta não possui success=true ou data, retornando lista vazia');
-                return { content: [], totalElements: 0 };
-            }
-        } catch (error) {
-            console.error(`[ESTOQUE] ❌ Erro: ${error.message}, retornando lista vazia`);
-            return { content: [], totalElements: 0 };
-        }
-    }
+            console.log(`[ALMOXARIFADO] Chamando endpoint: /almoxarifado`);
+            const result = await this.request('/almoxarifado');
 
-    /**
-     * Normaliza um item de estoque para ter estrutura consistente
-     */
-    normalizeEstoqueItem(item) {
-        return {
-            estoqueId: item.estoqueId || item.id,
-            id: item.estoqueId || item.id,
-            quantidadeEstoque: item.quantidadeEstoque || item.quantidade || 0,
-            produto: {
-                id: item.produto?.id || item.id,
-                nome: item.produto?.nome || item.nome || 'Produto não informado',
-                descricao: item.produto?.descricao || item.descricao || 'Descrição não disponível',
-                codBarras: item.produto?.codBarras || item.codBarras || ''
-            },
-            almoxarifado: {
-                id: item.almoxarifado?.id || item.produto?.almoxarifado?.id || 1,
-                nome: item.almoxarifado?.nome || item.produto?.almoxarifado?.nome || 'Almoxarifado não informado',
-                setor: item.almoxarifado?.setor || item.produto?.almoxarifado?.setor
-            },
-            lote: {
-                id: item.lote?.id || 1,
-                dataVencimento: item.lote?.dataVencimento || '2025-12-31',
-                quantidade: item.lote?.quantidade || item.quantidadeEstoque || 0
-            }
-        };
-    }
-
-    // Métodos de dados mockados removidos - sistema deve usar apenas dados reais da API
-
-    /**
-     * Busca estoque por ID
-     * @param {number} id - ID do estoque
-     * @returns {Promise<Object>} - Estoque encontrado
-     */
-    async buscarEstoquePorId(id) {
-        return this.request(`/estoque/${id}`);
-    }
-
-    // ===== ENDPOINTS DE PRODUTOS =====
-
-    /**
-     * Lista produtos com informações de estoque
-     * @param {Object} params - Parâmetros de paginação
-     * @returns {Promise<Object>} - Página de produtos com estoque
-     */
-    async listarProdutos(params = {}) {
-        try {
-            console.log(`[PRODUTOS] Chamando endpoint: /produtos`);
-            const result = await this.request('/produtos');
-            
-            console.log(`[PRODUTOS] Resposta bruta da API:`, result);
-            
-            if (result.success && result.data) {
-                // Retorna os dados diretamente, seja paginado ou não
-                console.log(`[PRODUTOS] ✅ Sucesso na API - Retornando dados:`, result.data);
-                return result.data;
-            } else {
-                console.warn('[PRODUTOS] Resposta não possui success=true ou data, retornando lista vazia');
-                return { content: [], totalElements: 0 };
-            }
-        } catch (error) {
-            console.error(`[PRODUTOS] ❌ Erro: ${error.message}, retornando lista vazia`);
-            return { content: [], totalElements: 0 };
-        }
-    }
-
-    /**
-     * Busca produtos por nome (para autocompletar)
-     * @param {string} nome - Nome ou parte do nome do produto
-     * @returns {Promise<Array>} - Lista de produtos encontrados
-     */
-    async buscarProdutosPorNome(nome) {
-        try {
-            console.log(`[PRODUTOS] Buscando produtos por nome: ${nome}`);
-            const result = await this.request(`/produtos/buscar-por-nome?nome=${encodeURIComponent(nome)}`);
-            
             if (result.success && result.data) {
                 return Array.isArray(result.data) ? result.data : [result.data];
             }
             return [];
         } catch (error) {
-            console.warn(`[PRODUTOS] Erro ao buscar por nome: ${error.message}`);
+            console.error(`[ALMOXARIFADO] Erro: ${error.message}`);
             return [];
         }
     }
 
     /**
-     * Verifica disponibilidade de estoque
-     * @param {number} produtoId - ID do produto
-     * @param {number} quantidade - Quantidade solicitada
-     * @returns {Promise<Object>} - Informações de disponibilidade
+     * Lista apenas almoxarifados ativos
+     * @async
+     * @returns {Promise<Array<Object>>} Array de almoxarifados ativos
+     * @description Filtra almoxarifados com status ativo=true.
+     *              Ideal para população de selects em formulários.
      */
-    async verificarDisponibilidadeEstoque(produtoId, quantidade) {
+    async listarAlmoxarifadosAtivos() {
         try {
-            console.log(`[PRODUTOS] Verificando disponibilidade: Produto ${produtoId}, Quantidade ${quantidade}`);
-            const result = await this.request(`/produtos/${produtoId}/verificar-estoque?quantidade=${quantidade}`);
-            
-            if (result.success) {
-                return result.data;
+            const result = await this.request('/almoxarifado/ativos');
+            if (result.success && result.data) {
+                return Array.isArray(result.data) ? result.data : [result.data];
             }
-            return { disponivel: false, mensagem: 'Erro ao verificar estoque' };
+            return [];
         } catch (error) {
-            console.warn(`[PRODUTOS] Erro ao verificar estoque: ${error.message}`);
-            return { disponivel: false, mensagem: 'Erro ao verificar estoque' };
+            console.error(`[ALMOXARIFADO] Erro ao buscar ativos: ${error.message}`);
+            return [];
         }
     }
 
-    // Métodos de produtos mockados removidos
+    /**
+     * Consulta saldo atual de um almoxarifado
+     * @async
+     * @param {number} almoxarifadoId - ID do almoxarifado
+     * @returns {Promise<Array<Object>>} Array de itens com produto, lote, quantidade disponível
+     * @description Retorna lista de todos os produtos e lotes disponíveis no almoxarifado.
+     *              Cada item contém: produto, lote, quantidadeDisponivel.
+     */
+    async consultarSaldoAlmoxarifado(almoxarifadoId) {
+        try {
+            const result = await this.request(`/almoxarifado/${almoxarifadoId}/saldo`);
+            if (result.success && result.data) {
+                return Array.isArray(result.data) ? result.data : [result.data];
+            }
+            return [];
+        } catch (error) {
+            console.error(`[ALMOXARIFADO] Erro ao consultar saldo: ${error.message}`);
+            return [];
+        }
+    }
+
+    // ===== ENDPOINTS DE PRODUTOS =====
 
     /**
-     * Busca produto por ID
+     * Lista todos os produtos cadastrados
+     * @async
+     * @returns {Promise<Array<Object>>} Array de produtos com id, nome, descrição, unidade medida
+     * @description Busca catálogo completo de produtos do sistema.
+     *              Retorna array vazio em caso de erro.
+     */
+    async listarProdutos() {
+        try {
+            console.log(`[PRODUTOS] Chamando endpoint: /produto`);
+            const result = await this.request('/produto');
+
+            if (result.success && result.data) {
+                return Array.isArray(result.data) ? result.data : [result.data];
+            }
+            return [];
+        } catch (error) {
+            console.error(`[PRODUTOS] Erro: ${error.message}`);
+            return [];
+        }
+    }
+
+    /**
+     * Consulta saldo total de um produto em todos os almoxarifados
+     * @async
+     * @param {number} produtoId - ID do produto
+     * @returns {Promise<Object>} Objeto com produtoId e quantidadeTotal somando todos almoxarifados
+     * @description Retorna quantidade total disponível considerando todos os lotes e almoxarifados.
+     *              Em caso de erro, retorna {produtoId, quantidadeTotal: 0}.
+     */
+    async consultarSaldoTotalProduto(produtoId) {
+        try {
+            const result = await this.request(`/produto/${produtoId}/saldo-total`);
+            if (result.success && result.data) {
+                return result.data;
+            }
+            return { produtoId, quantidadeTotal: 0 };
+        } catch (error) {
+            console.error(`[PRODUTOS] Erro ao consultar saldo: ${error.message}`);
+            return { produtoId, quantidadeTotal: 0 };
+        }
+    }
+
+    /**
+     * Busca um produto específico por ID
+     * @async
      * @param {number} id - ID do produto
-     * @returns {Promise<Object>} - Produto encontrado
+     * @returns {Promise<Object>} Produto com todas as propriedades (id, nome, descricao, unidadeMedida)
+     * @throws {Error} Se o produto não existir
      */
     async buscarProdutoPorId(id) {
-        return this.request(`/produtos/${id}`);
-    }
+        return this.request(`/produto/${id}`);
+    }    // ===== ENDPOINTS DE FORNECEDORES =====
 
     /**
-     * Cria um novo produto
-     * @param {Object} produto - Dados do produto
-     * @returns {Promise<Object>} - Produto criado
-     */
-    async criarProduto(produto) {
-        return this.request('/produtos', {
-            method: 'POST',
-            body: JSON.stringify(produto)
-        });
-    }
-
-    /**
-     * Atualiza um produto existente
-     * @param {number} id - ID do produto
-     * @param {Object} produto - Novos dados do produto
-     * @returns {Promise<Object>} - Produto atualizado
-     */
-    async atualizarProduto(id, produto) {
-        return this.request(`/produtos/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(produto)
-        });
-    }
-
-    /**
-     * Remove um produto
-     * @param {number} id - ID do produto
-     * @returns {Promise<void>}
-     */
-    async removerProduto(id) {
-        return this.request(`/produtos/${id}`, {
-            method: 'DELETE'
-        });
-    }
-
-    // ===== ENDPOINTS DE FORNECEDORES =====
-
-    /**
-     * Lista fornecedores com paginação
-     * @param {Object} params - Parâmetros de paginação
-     * @returns {Promise<Object>} - Página de fornecedores
+     * Lista fornecedores com paginação e ordenação
+     * @async
+     * @param {Object} [params={}] - Parâmetros de paginação
+     * @param {number} [params.page=0] - Número da página (começa em 0)
+     * @param {number} [params.size=20] - Tamanho da página
+     * @param {string} [params.sortBy='id'] - Campo para ordenação
+     * @param {string} [params.direction='ASC'] - Direção da ordenação (ASC/DESC)
+     * @returns {Promise<Object>} Página de fornecedores com content, totalElements, totalPages
      */
     async listarFornecedores(params = {}) {
         const queryParams = new URLSearchParams({
@@ -379,14 +299,16 @@ class ApiManager {
             sortBy: params.sortBy || 'id',
             direction: params.direction || 'ASC'
         });
-        
+
         return this.request(`/fornecedores?${queryParams}`);
     }
 
     /**
-     * Busca fornecedor por ID
+     * Busca um fornecedor específico por ID
+     * @async
      * @param {number} id - ID do fornecedor
-     * @returns {Promise<Object>} - Fornecedor encontrado
+     * @returns {Promise<Object>} Fornecedor com cnpj, razaoSocial, nomeFantasia, contato
+     * @throws {Error} Se o fornecedor não existir
      */
     async buscarFornecedorPorId(id) {
         return this.request(`/fornecedores/${id}`);
@@ -394,8 +316,14 @@ class ApiManager {
 
     /**
      * Cria um novo fornecedor
+     * @async
      * @param {Object} fornecedor - Dados do fornecedor
-     * @returns {Promise<Object>} - Fornecedor criado
+     * @param {string} fornecedor.cnpj - CNPJ do fornecedor
+     * @param {string} fornecedor.razaoSocial - Razão social
+     * @param {string} [fornecedor.nomeFantasia] - Nome fantasia (opcional)
+     * @param {string} [fornecedor.contato] - Informações de contato (opcional)
+     * @returns {Promise<Object>} Fornecedor criado com ID gerado
+     * @throws {Error} Se CNPJ já estiver cadastrado ou dados inválidos
      */
     async criarFornecedor(fornecedor) {
         return this.request('/fornecedores', {
@@ -442,7 +370,7 @@ class ApiManager {
             sortBy: params.sortBy || 'id',
             direction: params.direction || 'ASC'
         });
-        
+
         return this.request(`/ordens-compra?${queryParams}`);
     }
 
@@ -501,7 +429,7 @@ class ApiManager {
         try {
             console.log(`[USUARIOS] Chamando endpoint: /usuarios`);
             const result = await this.request('/usuarios');
-            
+
             if (result.success && result.data) {
                 // Normaliza resultado para array
                 const usuarios = Array.isArray(result.data) ? result.data : [result.data];
@@ -541,7 +469,7 @@ class ApiManager {
         try {
             console.log(`[SETORES] Chamando endpoint: /setores`);
             const result = await this.request('/setores');
-            
+
             if (result.success && result.data) {
                 // Normaliza resultado para array
                 const setores = Array.isArray(result.data) ? result.data : [result.data];

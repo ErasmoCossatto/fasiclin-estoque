@@ -1,29 +1,83 @@
 /**
- * MovimentacaoManager - Gerenciador de movimentações integrado com Spring Boot
+ * MovimentacaoManager - Gerenciador principal de movimentações de estoque
+ * 
+ * @class MovimentacaoManager
+ * @description Gerencia todas as operações de movimentação de estoque entre almoxarifados,
+ *              incluindo transferências, entradas, consultas e validações em tempo real.
+ *              Integra-se com o backend Spring Boot através do ApiManager.
+ * 
+ * @author Sistema de Estoque FasiClin
+ * @version 2.0.0
+ * 
+ * @property {ApiManager} apiManager - Instância do gerenciador de APIs
+ * @property {Array} movimentacoes - Lista de movimentações carregadas
+ * @property {Array} estoques - Lista de estoques disponíveis
+ * @property {Array} usuarios - Lista de usuários do sistema
+ * @property {Array} almoxarifados - Lista de almoxarifados cadastrados
+ * @property {Array} estoquePorAlmoxarifado - Estoque agrupado por almoxarifado
+ * @property {string} _estoqueSnapshot - Snapshot do estoque para detecção de mudanças
+ * @property {number|null} currentEditId - ID da movimentação em edição
+ * @property {boolean} isLoading - Indica se há operação de carregamento em andamento
+ * @property {number} currentPage - Página atual da paginação
+ * @property {number} itemsPerPage - Itens por página (padrão: 20)
+ * @property {number} totalPages - Total de páginas disponíveis
+ * 
+ * @example
+ * // Instanciado automaticamente ao carregar a página
+ * const manager = new MovimentacaoManager();
  */
 class MovimentacaoManager {
+    /**
+     * Construtor do MovimentacaoManager
+     * @constructor
+     * @description Inicializa todas as propriedades e inicia o carregamento de dados
+     */
     constructor() {
+        /** @type {ApiManager} Gerenciador de APIs REST */
         this.apiManager = window.apiManager;
+
+        /** @type {Array<Object>} Lista de movimentações */
         this.movimentacoes = [];
+
+        /** @type {Array<Object>} Lista de estoques */
         this.estoques = [];
+
+        /** @type {Array<Object>} Lista de usuários */
         this.usuarios = [];
-        this.setores = [];
-        this.estoquePorSetor = [];
-        // Snapshot para detectar mudanças reais no estoque
+
+        /** @type {Array<Object>} Lista de almoxarifados */
+        this.almoxarifados = [];
+
+        /** @type {Array<Object>} Estoque agrupado por almoxarifado */
+        this.estoquePorAlmoxarifado = [];
+
+        /** @type {string} Snapshot para detectar mudanças reais no estoque */
         this._estoqueSnapshot = '';
+
+        /** @type {number|null} ID da movimentação atualmente em edição */
         this.currentEditId = null;
+
+        /** @type {boolean} Flag de carregamento */
         this.isLoading = false;
 
-        // Paginação
+        // Configuração de paginação
+        /** @type {number} Página atual */
         this.currentPage = 1;
+
+        /** @type {number} Número de itens por página */
         this.itemsPerPage = 20;
+
+        /** @type {number} Total de páginas */
         this.totalPages = 0;
 
         this.init();
     }
 
     /**
-     * Inicializa o gerenciador
+     * Inicializa o gerenciador de movimentações
+     * @async
+     * @returns {Promise<void>}
+     * @description Testa conectividade, vincula eventos e carrega dados iniciais
      */
     async init() {
         console.log('[MovimentacaoManager] Inicializando...');
@@ -37,7 +91,12 @@ class MovimentacaoManager {
     }
 
     /**
-     * Testa a conectividade com o backend
+     * Testa a conectividade com o backend Spring Boot
+     * @async
+     * @returns {Promise<void>}
+     * @description Verifica se o servidor está respondendo corretamente,
+     *              exibindo notificações em caso de erro de conexão
+     * @throws {Error} Se houver falha na comunicação com o servidor
      */
     async testBackendConnection() {
         console.log('[CONECTIVIDADE] Testando conexão com o backend...');
@@ -67,7 +126,10 @@ class MovimentacaoManager {
     }
 
     /**
-     * Vincula eventos aos elementos
+     * Vincula eventos aos elementos do DOM
+     * @returns {void}
+     * @description Configura todos os event listeners para botões, formulários e modais.
+     *              Inclui validação em tempo real, paginação e atualização de dados.
      */
     bindEvents() {
         // Botão nova movimentação
@@ -97,10 +159,10 @@ class MovimentacaoManager {
         // Validação em tempo real da quantidade
         const quantityInput = document.getElementById('amount');
         const produtoSelect = document.getElementById('produtoSelect');
-        const setorOrigemSelect = document.getElementById('setor-origem-select');
+        const almoxOrigemSelect = document.getElementById('almox-origem-select');
 
-        if (quantityInput && produtoSelect && setorOrigemSelect) {
-            [quantityInput, produtoSelect, setorOrigemSelect].forEach(element => {
+        if (quantityInput && produtoSelect && almoxOrigemSelect) {
+            [quantityInput, produtoSelect, almoxOrigemSelect].forEach(element => {
                 element.addEventListener('change', () => this.validateQuantityInRealTime());
                 element.addEventListener('input', () => this.validateQuantityInRealTime());
             });
@@ -146,7 +208,12 @@ class MovimentacaoManager {
     }
 
     /**
-     * Carrega todos os dados necessários
+     * Carrega todos os dados necessários do backend
+     * @async
+     * @returns {Promise<void>}
+     * @description Carrega movimentações, produtos, almoxarifados e estoque em paralelo.
+     *              Após o carregamento, renderiza automaticamente as movimentações na tabela.
+     * @throws {Error} Se houver falha ao carregar qualquer recurso
      */
     async loadData() {
         this.setLoading(true);
@@ -157,10 +224,9 @@ class MovimentacaoManager {
             // Carrega dados em paralelo
             const promises = [
                 this.loadMovimentacoes(),
-                this.loadProdutos(), // Carrega estoques (que contêm produtos)
-                // this.loadUsuarios(), // Removido - usuário será definido automaticamente
-                this.loadSetores(),
-                this.loadEstoquePorSetor() // Nova função para carregar estoque por setor
+                this.loadProdutos(),
+                this.loadAlmoxarifados(),
+                this.loadEstoquePorAlmoxarifado()
             ];
 
             await Promise.all(promises);
@@ -185,6 +251,11 @@ class MovimentacaoManager {
 
     /**
      * Carrega movimentações do servidor
+     * @async
+     * @returns {Promise<void>}
+     * @description Busca todas as movimentações, ordena por data (mais recentes primeiro),
+     *              reseta paginação e renderiza automaticamente na tabela.
+     * @throws {Error} Se houver falha na comunicação com o backend
      */
     async loadMovimentacoes() {
         try {
@@ -248,6 +319,11 @@ class MovimentacaoManager {
 
     /**
      * Carrega estoques do servidor
+     * @async
+     * @returns {Promise<void>}
+     * @description Busca todos os registros de estoque e popula os selects de produto no formulário.
+     *              Em caso de erro, inicializa array vazio.
+     * @throws {Error} Se houver falha na comunicação com o backend
      */
     async loadEstoques() {
         try {
@@ -313,92 +389,89 @@ class MovimentacaoManager {
     }
 
     /**
-     * Carrega setores do servidor
+     * Carrega almoxarifados do servidor
      */
-    async loadSetores() {
+    async loadAlmoxarifados() {
         try {
-            console.log('[SETORES] 🔄 Iniciando carregamento de setores...');
-            console.log('[SETORES] Chamando endpoint:', `${this.apiManager.baseURL}/setores`);
+            console.log('[ALMOXARIFADOS] 🔄 Iniciando carregamento...');
+            console.log('[ALMOXARIFADOS] Chamando endpoint:', `${this.apiManager.baseURL}/almoxarifado`);
 
-            const setores = await this.apiManager.listarSetores();
+            const almoxarifados = await this.apiManager.listarAlmoxarifados();
 
-            console.log('[SETORES] Resposta da API:', setores);
+            console.log('[ALMOXARIFADOS] Resposta da API:', almoxarifados);
 
-            this.setores = setores || [];
-            console.log(`[SETORES] ✅ ${this.setores.length} setores carregados:`, this.setores);
+            this.almoxarifados = almoxarifados || [];
+            console.log(`[ALMOXARIFADOS] ✅ ${this.almoxarifados.length} almoxarifados carregados:`, this.almoxarifados);
 
-            if (this.setores.length === 0) {
-                console.warn('[SETORES] ⚠️ Nenhum setor encontrado! Verifique se há dados no banco.');
-                this.showNotification('⚠️ Nenhum setor encontrado no sistema', 'warning', 4000);
+            if (this.almoxarifados.length === 0) {
+                console.warn('[ALMOXARIFADOS] ⚠️ Nenhum almoxarifado encontrado!');
+                this.showNotification('⚠️ Nenhum almoxarifado encontrado no sistema', 'warning', 4000);
             }
 
-            this.populateSetorSelects();
+            this.populateAlmoxarifadoSelects();
         } catch (error) {
-            console.error('[SETORES] ❌ Erro ao carregar setores:', error);
-            this.setores = [];
-            this.showNotification('❌ Erro ao carregar setores: ' + error.message, 'error');
+            console.error('[ALMOXARIFADOS] ❌ Erro ao carregar:', error);
+            this.almoxarifados = [];
+            this.showNotification('❌ Erro ao carregar almoxarifados: ' + error.message, 'error');
         }
     }
 
     /**
-     * Carrega estoque agrupado por setor - VERSÃO SIMPLIFICADA
+     * Carrega estoque agrupado por almoxarifado
      */
-    async loadEstoquePorSetor() {
+    async loadEstoquePorAlmoxarifado() {
         try {
-            console.log('[ESTOQUE_SETOR] 🔄 Carregando estoque por setor...');
+            console.log('[ESTOQUE_ALMOX] 🔄 Carregando estoque por almoxarifado...');
 
-            // Usar endpoint específico que retorna dados já formatados
-            const response = await this.apiManager.request('/estoque/por-setor');
+            // Buscar todos os almoxarifados com seus saldos
+            const almoxarifados = await this.apiManager.listarAlmoxarifados();
 
-            if (response.success && Array.isArray(response.data)) {
-                this.estoquePorSetor = response.data;
-                this._estoqueSnapshot = this.createEstoqueSnapshot(this.estoquePorSetor);
+            // Para cada almoxarifado, buscar o saldo
+            const estoquePromises = almoxarifados.map(async (almox) => {
+                const saldo = await this.apiManager.consultarSaldoAlmoxarifado(almox.id);
+                return saldo.map(item => ({
+                    ...item,
+                    almoxarifado: almox
+                }));
+            });
 
-                console.log(`[ESTOQUE_SETOR] ✅ ${this.estoquePorSetor.length} itens carregados`);
+            const resultados = await Promise.all(estoquePromises);
+            this.estoquePorAlmoxarifado = resultados.flat();
+            this._estoqueSnapshot = this.createEstoqueSnapshot(this.estoquePorAlmoxarifado);
 
-                // Log resumido por setor
-                const resumo = {};
-                this.estoquePorSetor.forEach(item => {
-                    const setorNome = item.setor?.nome || 'Sem Setor';
-                    resumo[setorNome] = (resumo[setorNome] || 0) + 1;
-                });
+            console.log(`[ESTOQUE_ALMOX] ✅ ${this.estoquePorAlmoxarifado.length} itens carregados`);
 
-                console.log('[ESTOQUE_SETOR] Resumo por setor:', resumo);
-            } else {
-                console.warn('[ESTOQUE_SETOR] ⚠️ Resposta inválida');
-                this.estoquePorSetor = [];
-            }
+            // Log resumido por almoxarifado
+            const resumo = {};
+            this.estoquePorAlmoxarifado.forEach(item => {
+                const almoxNome = item.almoxarifado?.descricao || 'Sem Almoxarifado';
+                resumo[almoxNome] = (resumo[almoxNome] || 0) + 1;
+            });
+
+            console.log('[ESTOQUE_ALMOX] Resumo por almoxarifado:', resumo);
 
         } catch (error) {
-            console.error('[ESTOQUE_SETOR] ❌ Erro:', error.message);
-            this.estoquePorSetor = [];
+            console.error('[ESTOQUE_ALMOX] ❌ Erro:', error.message);
+            this.estoquePorAlmoxarifado = [];
             this.showNotification('❌ Erro ao carregar estoque: ' + error.message, 'error');
         }
     }
 
     /**
-     * Carrega estoque em TEMPO REAL (sem cache) - VERSÃO SIMPLIFICADA
+     * Carrega estoque em TEMPO REAL (sem cache)
      */
-    async loadEstoquePorSetorTempoReal() {
+    async loadEstoquePorAlmoxarifadoTempoReal() {
         try {
             console.log('[TEMPO_REAL] 🔄 Carregando estoque atualizado...');
 
-            const timestamp = Date.now();
-            const response = await this.apiManager.request(`/estoque/tempo-real?_t=${timestamp}`);
+            // Recarregar completamente
+            await this.loadEstoquePorAlmoxarifado();
 
-            if (response.success && Array.isArray(response.data)) {
-                this.estoquePorSetor = response.data;
-                this._estoqueSnapshot = this.createEstoqueSnapshot(this.estoquePorSetor);
-
-                console.log(`[TEMPO_REAL] ✅ ${this.estoquePorSetor.length} itens atualizados`);
-            } else {
-                console.warn('[TEMPO_REAL] ⚠️ Resposta inválida, mantendo cache');
-            }
+            console.log(`[TEMPO_REAL] ✅ ${this.estoquePorAlmoxarifado.length} itens atualizados`);
 
         } catch (error) {
             console.error('[TEMPO_REAL] ❌ Erro:', error.message);
-            // Em caso de erro, tenta carregar pelo método normal
-            await this.loadEstoquePorSetor();
+            this.showNotification('❌ Erro ao atualizar estoque', 'error');
         }
     }
 
@@ -473,15 +546,15 @@ class MovimentacaoManager {
     }
 
     /**
-     * Popula selects de setores
+     * Popula selects de almoxarifados
      */
-    populateSetorSelects() {
-        const selectOrigem = document.getElementById('setor-origem-select');
-        const selectDestino = document.getElementById('setor-destino-select');
+    populateAlmoxarifadoSelects() {
+        const selectOrigem = document.getElementById('almox-origem-select');
+        const selectDestino = document.getElementById('almox-destino-select');
 
-        const options = '<option value="">Selecione um setor...</option>' +
-            this.setores.map(setor =>
-                `<option value="${setor.id}">${setor.nome}</option>`
+        const options = '<option value="">Selecione um almoxarifado...</option>' +
+            this.almoxarifados.map(almox =>
+                `<option value="${almox.id}">${almox.nome || almox.descricao || `Almoxarifado ${almox.id}`}</option>`
             ).join('');
 
         if (selectOrigem) selectOrigem.innerHTML = options;
@@ -634,7 +707,11 @@ class MovimentacaoManager {
     }
 
     /**
-     * Cria card mobile
+     * Cria card mobile para uma movimentação
+     * @param {Object} movimentacao - Objeto da movimentação
+     * @returns {string} HTML do card mobile
+     * @description Gera HTML formatado para exibição mobile com botões de ação.
+     *              Otimizado para telas pequenas com design responsivo.
      */
     createCard(movimentacao) {
         const tipoIcon = movimentacao.tipoMovimentacao === 'ENTRADA' ? '⬆️' : '⬇️';
@@ -679,7 +756,10 @@ class MovimentacaoManager {
     }
 
     /**
-     * Renderiza estado vazio
+     * Renderiza estado vazio quando não há movimentações
+     * @returns {void}
+     * @description Exibe mensagem amigável e botão para criar nova movimentação
+     *              tanto na visão desktop (tabela) quanto mobile (cards).
      */
     renderEmptyState() {
         const emptyHTML = `
@@ -702,7 +782,10 @@ class MovimentacaoManager {
     }
 
     /**
-     * Atualiza informações de paginação
+     * Atualiza informações de paginação na interface
+     * @returns {void}
+     * @description Calcula e atualiza os indicadores de página atual, itens exibidos,
+     *              total de itens e estado dos botões de navegação (anterior/próximo).
      */
     updatePaginationInfo() {
         const total = this.movimentacoes.length;
@@ -822,12 +905,12 @@ class MovimentacaoManager {
         }
 
         try {
-            await this.loadEstoquePorSetorTempoReal();
+            await this.loadEstoquePorAlmoxarifadoTempoReal();
             this.renderStockPanel();
             console.log('[MODAL] ✅ Estoque carregado');
         } catch (error) {
             console.error('[MODAL] ❌ Erro ao carregar estoque:', error);
-            await this.loadEstoquePorSetor();
+            await this.loadEstoquePorAlmoxarifado();
             this.renderStockPanel();
         }
 
@@ -880,7 +963,13 @@ class MovimentacaoManager {
     }
 
     /**
-     * Manipula salvamento - VERSÃO SIMPLIFICADA
+     * Manipula o salvamento de uma movimentação (nova ou edição)
+     * @async
+     * @param {Event} event - Evento de submissão do formulário
+     * @returns {Promise<void>}
+     * @description Valida formulário, envia dados ao backend via POST/PUT,
+     *              recarrega dados e atualiza a interface após sucesso.
+     * @throws {Error} Se houver falha na validação ou no salvamento
      */
     async handleSave(event) {
         event.preventDefault();
@@ -948,7 +1037,17 @@ class MovimentacaoManager {
     }
 
     /**
-     * Obtém dados do formulário formatados para transferência entre setores
+     * Obtém dados do formulário formatados para transferência entre almoxarifados
+     * @returns {Object} Objeto com dados formatados no padrão MovimentacaoEntreSetoresDTO
+     * @description Coleta valores dos campos do formulário e formata para envio ao backend.
+     *              Captura data/hora local do sistema para evitar problemas de UTC.
+     * @property {number} produtoId - ID do produto
+     * @property {number} setorOrigemId - ID do almoxarifado de origem
+     * @property {number} setorDestinoId - ID do almoxarifado de destino
+     * @property {number} quantidade - Quantidade a transferir
+     * @property {string} tipoMovimentacao - Tipo da movimentação (ENTRADA/TRANSFERENCIA)
+     * @property {string} dataMovimentacao - Data no formato YYYY-MM-DD
+     * @property {string} horaMovimentacao - Hora no formato HH:mm:ss
      */
     getFormData() {
         const produtoId = parseInt(document.getElementById('produtoSelect').value);
@@ -1183,8 +1282,8 @@ class MovimentacaoManager {
         try {
             console.log('[PRODUTOS] Iniciando carregamento de produtos...');
 
-            // Usa o novo endpoint que lista todos os produtos ordenados por IDPRODUTO
-            const response = await fetch(`${this.apiManager.baseURL}/produtos/todos-para-movimentacao`, {
+            // Usa o endpoint que lista todos os produtos
+            const response = await fetch(`${this.apiManager.baseURL}/produto`, {
                 method: 'GET',
                 headers: this.apiManager.headers
             });
@@ -1230,40 +1329,29 @@ class MovimentacaoManager {
         // Limpa as opções atuais
         select.innerHTML = '<option value="">Selecione um produto...</option>';
 
-        // FILTRAR: Mostrar apenas produtos que podem ser movimentados (têm almoxarifado)
-        const produtosMovimentaveis = produtos.filter(produto => produto.podeMovimentar);
-
-        console.log(`[PRODUTOS] Filtrados ${produtosMovimentaveis.length} produtos movimentáveis de ${produtos.length} total`);
-
-        if (produtosMovimentaveis.length === 0) {
-            select.innerHTML += '<option value="" disabled>Nenhum produto movimentável encontrado</option>';
+        if (!produtos || produtos.length === 0) {
+            select.innerHTML += '<option value="" disabled>Nenhum produto encontrado</option>';
+            console.warn('[PRODUTOS] ⚠️ Lista de produtos vazia');
             return;
         }
 
-        // Adiciona apenas os produtos que podem ser movimentados
-        produtosMovimentaveis.forEach(produto => {
+        // Adiciona todos os produtos
+        produtos.forEach(produto => {
             const option = document.createElement('option');
             option.value = produto.id;
             option.dataset.produto = JSON.stringify(produto);
 
-            // Monta o texto da opção mostrando IDPRODUTO
-            let textoOpcao = `${produto.idProduto} - ${produto.nome}`;
-            if (produto.stqMax) {
-                textoOpcao += ` (Max: ${produto.stqMax})`;
-            }
-
-            // Mostrar almoxarifado associado
-            if (produto.almoxarifado && produto.almoxarifado !== 'Sem almoxarifado') {
-                textoOpcao += ` [${produto.almoxarifado}]`;
+            // Monta o texto da opção
+            let textoOpcao = produto.nome;
+            if (produto.descricao) {
+                textoOpcao += ` - ${produto.descricao}`;
             }
 
             option.textContent = textoOpcao;
             select.appendChild(option);
-
-            console.log(`[PRODUTOS] Adicionado: ${produto.nome} (ID: ${produto.id}) - Almoxarifado: ${produto.almoxarifado}`);
         });
 
-        console.log(`[PRODUTOS] ✅ Select populado com ${produtosMovimentaveis.length} produtos movimentáveis`);
+        console.log(`[PRODUTOS] ✅ Select populado com ${produtos.length} produtos`);
     }
 
     /**
@@ -1605,50 +1693,51 @@ class MovimentacaoManager {
             return;
         }
 
-        if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
+        if (!this.estoquePorAlmoxarifado || this.estoquePorAlmoxarifado.length === 0) {
             stockContainer.innerHTML = '<div class="loading-stocks"><p>📦 Nenhum produto em estoque</p></div>';
             console.log('[RENDER_STOCK] Nenhum dado para exibir');
             return;
         }
 
-        // Agrupar por setor
-        const porSetor = {};
+        // Agrupar por almoxarifado
+        const porAlmoxarifado = {};
 
-        this.estoquePorSetor.forEach(item => {
-            const setorNome = item.setor?.nome || 'Sem Setor';
+        this.estoquePorAlmoxarifado.forEach(item => {
+            const almoxNome = item.almoxarifado?.nome || item.almoxarifado?.descricao || 'Sem Almoxarifado';
 
-            if (!porSetor[setorNome]) {
-                porSetor[setorNome] = [];
+            if (!porAlmoxarifado[almoxNome]) {
+                porAlmoxarifado[almoxNome] = [];
             }
 
-            porSetor[setorNome].push(item);
+            porAlmoxarifado[almoxNome].push(item);
         });
 
-        // Garantir que setores cadastrados apareçam
-        if (this.setores && this.setores.length > 0) {
-            this.setores.forEach(setor => {
-                if (!porSetor[setor.nome]) {
-                    porSetor[setor.nome] = [];
+        // Garantir que almoxarifados cadastrados apareçam
+        if (this.almoxarifados && this.almoxarifados.length > 0) {
+            this.almoxarifados.forEach(almox => {
+                const nome = almox.nome || almox.descricao;
+                if (!porAlmoxarifado[nome]) {
+                    porAlmoxarifado[nome] = [];
                 }
             });
         }
 
-        // Ordenar setores
-        const setoresOrdenados = Object.keys(porSetor).sort();
+        // Ordenar almoxarifados
+        const almoxarifadosOrdenados = Object.keys(porAlmoxarifado).sort();
 
-        console.log('[RENDER_STOCK] Setores a renderizar:', setoresOrdenados);
+        console.log('[RENDER_STOCK] Almoxarifados a renderizar:', almoxarifadosOrdenados);
 
         // Gerar HTML
         let html = '';
 
-        setoresOrdenados.forEach(setorNome => {
-            const produtos = porSetor[setorNome];
-            const totalQtd = produtos.reduce((sum, p) => sum + (p.quantidadeEstoque || 0), 0);
+        almoxarifadosOrdenados.forEach(almoxNome => {
+            const produtos = porAlmoxarifado[almoxNome];
+            const totalQtd = produtos.reduce((sum, p) => sum + (p.quantidadeDisponivel || 0), 0);
 
             html += `
                 <div class="stock-group">
                     <h5 class="stock-group-title">
-                        🏢 ${setorNome}
+                        🏢 ${almoxNome}
                         <span class="stock-group-summary">(${produtos.length} produto${produtos.length !== 1 ? 's' : ''}, ${totalQtd} und)</span>
                     </h5>
                     <div class="stock-group-content">
@@ -1666,16 +1755,16 @@ class MovimentacaoManager {
             } else {
                 produtos.forEach(item => {
                     const produtoNome = item.produto?.nome || 'Produto sem nome';
-                    const qtd = item.quantidadeEstoque || 0;
+                    const qtd = item.quantidadeDisponivel || 0;
                     const cssClass = qtd === 0 ? 'low-stock' : qtd <= 10 ? 'low-stock' : qtd <= 50 ? 'medium-stock' : 'good-stock';
 
                     html += `
-                        <div class="stock-item" data-produto-id="${item.produto?.id}" data-setor-id="${item.setor?.id}">
+                        <div class="stock-item" data-produto-id="${item.produto?.id}" data-almox-id="${item.almoxarifado?.id}">
                             <div class="stock-item-header">
                                 <span class="stock-item-name">${produtoNome}</span>
                                 <span class="stock-item-quantity ${cssClass}">${qtd}</span>
                             </div>
-                            <div class="stock-item-sector">📍 ${setorNome}</div>
+                            <div class="stock-item-sector">📍 ${almoxNome}</div>
                         </div>
                     `;
                 });
@@ -1690,20 +1779,20 @@ class MovimentacaoManager {
         stockContainer.innerHTML = html;
 
         // Adicionar listeners para seleção
-        const items = stockContainer.querySelectorAll('.stock-item[data-produto-id][data-setor-id]');
+        const items = stockContainer.querySelectorAll('.stock-item[data-produto-id][data-almox-id]');
         items.forEach(el => {
             el.addEventListener('click', () => {
                 const produtoId = el.getAttribute('data-produto-id');
-                const setorId = el.getAttribute('data-setor-id');
+                const almoxId = el.getAttribute('data-almox-id');
 
                 const produtoSelect = document.getElementById('produtoSelect');
-                const setorOrigemSelect = document.getElementById('setor-origem-select');
+                const almoxOrigemSelect = document.getElementById('almox-origem-select');
 
                 if (produtoId && produtoSelect) {
                     produtoSelect.value = produtoId;
                 }
-                if (setorId && setorOrigemSelect) {
-                    setorOrigemSelect.value = setorId;
+                if (almoxId && almoxOrigemSelect) {
+                    almoxOrigemSelect.value = almoxId;
                 }
 
                 el.classList.add('selected');
