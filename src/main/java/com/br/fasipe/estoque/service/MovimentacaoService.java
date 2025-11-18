@@ -147,6 +147,67 @@ public class MovimentacaoService {
         return itensAlmoxarifadosRepository.findAll();
     }
 
+    /**
+     * Verifica se há estoque disponível suficiente para uma movimentação.
+     * Útil para validação no frontend antes de submeter.
+     *
+     * @param idAlmoxOrigem ID do almoxarifado de origem
+     * @param idProduto ID do produto
+     * @param idLote ID do lote
+     * @param quantidade Quantidade desejada
+     * @return true se há estoque disponível, false caso contrário
+     */
+    public boolean verificarDisponibilidade(
+            Integer idAlmoxOrigem,
+            Integer idProduto,
+            Integer idLote,
+            Integer quantidade) {
+        
+        if (idAlmoxOrigem == null || idProduto == null || idLote == null || quantidade == null) {
+            return false;
+        }
+
+        Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
+                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(idAlmoxOrigem, idProduto, idLote);
+
+        if (itemOpt.isEmpty()) {
+            log.debug("Item não encontrado no estoque: Almox={}, Produto={}, Lote={}",
+                    idAlmoxOrigem, idProduto, idLote);
+            return false;
+        }
+
+        Integer disponivel = itemOpt.get().getQuantidade();
+        boolean temEstoque = disponivel >= quantidade;
+        
+        log.debug("Verificação de disponibilidade: Disponível={}, Solicitado={}, Resultado={}",
+                disponivel, quantidade, temEstoque);
+        
+        return temEstoque;
+    }
+
+    /**
+     * Consulta a quantidade disponível de um produto específico em um almoxarifado e lote.
+     *
+     * @param idAlmoxarifado ID do almoxarifado
+     * @param idProduto ID do produto
+     * @param idLote ID do lote
+     * @return Quantidade disponível ou 0 se não encontrado
+     */
+    public Integer consultarQuantidadeDisponivel(
+            Integer idAlmoxarifado,
+            Integer idProduto,
+            Integer idLote) {
+        
+        if (idAlmoxarifado == null || idProduto == null || idLote == null) {
+            return 0;
+        }
+
+        return itensAlmoxarifadosRepository
+                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(idAlmoxarifado, idProduto, idLote)
+                .map(ItensAlmoxarifados::getQuantidade)
+                .orElse(0);
+    }
+
     // Métodos auxiliares privados
 
     private void validarParametros(Integer quantidade, String responsavel) {
@@ -186,13 +247,19 @@ public class MovimentacaoService {
 
         if (itemOpt.isEmpty()) {
             throw new EstoqueInsuficienteException(
-                    "Produto não encontrado no estoque do almoxarifado de origem");
+                    String.format("Produto '%s' (Lote: %s) não encontrado no almoxarifado '%s'. " +
+                            "Realize uma entrada de estoque antes de transferir.",
+                            produto.getDescricao(), lote.getNomeLote(), almox.getNomeAlmoxarifado()));
         }
 
         ItensAlmoxarifados item = itemOpt.get();
         
         if (item.getQuantidade() < quantidade) {
-            throw new EstoqueInsuficienteException(item.getQuantidade(), quantidade);
+            throw new EstoqueInsuficienteException(
+                    String.format("Estoque insuficiente no almoxarifado '%s'. " +
+                            "Produto: '%s', Lote: %s. Disponível: %d, Solicitado: %d",
+                            almox.getNomeAlmoxarifado(), produto.getDescricao(),
+                            lote.getNomeLote(), item.getQuantidade(), quantidade));
         }
 
         item.removerQuantidade(quantidade);
