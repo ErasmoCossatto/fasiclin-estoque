@@ -1,5 +1,6 @@
 package com.br.fasipe.estoque.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,7 +19,8 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = {"almoxarifadoOrigem", "almoxarifadoDestino", "produto", "loteOrigem", "loteDestino"})
+@ToString(exclude = {"almoxarifadoOrigem", "almoxarifadoDestino", "item", "loteOrigem", "loteDestino"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class MovimentacaoAlmoxarifado implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -32,13 +34,14 @@ public class MovimentacaoAlmoxarifado implements Serializable {
     @JoinColumn(name = "IDALMOX_ORIGEM")
     private Almoxarifado almoxarifadoOrigem;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "IDALMOX_DESTINO", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "IDALMOX_DESTINO")
     private Almoxarifado almoxarifadoDestino;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "IDITEM", nullable = false)
-    private Produto produto;
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Item item;
 
     @Column(name = "QUANTIDADE", nullable = false)
     private Integer quantidade;
@@ -56,8 +59,8 @@ public class MovimentacaoAlmoxarifado implements Serializable {
     @JoinColumn(name = "IDLOTE_ORIGEM")
     private Lote loteOrigem;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "IDLOTE_DESTINO", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "IDLOTE_DESTINO")
     private Lote loteDestino;
 
     @PrePersist

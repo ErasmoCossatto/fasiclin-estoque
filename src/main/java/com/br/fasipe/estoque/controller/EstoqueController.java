@@ -1,10 +1,13 @@
 package com.br.fasipe.estoque.controller;
 
+import com.br.fasipe.estoque.model.ItensAlmoxarifados;
+import com.br.fasipe.estoque.repository.ItensAlmoxarifadosRepository;
 import com.br.fasipe.estoque.service.MovimentacaoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,9 +18,30 @@ import java.util.Map;
 public class EstoqueController {
 
     private final MovimentacaoService movimentacaoService;
+    private final ItensAlmoxarifadosRepository itensAlmoxarifadosRepository;
 
-    public EstoqueController(MovimentacaoService movimentacaoService) {
+    public EstoqueController(MovimentacaoService movimentacaoService,
+                           ItensAlmoxarifadosRepository itensAlmoxarifadosRepository) {
         this.movimentacaoService = movimentacaoService;
+        this.itensAlmoxarifadosRepository = itensAlmoxarifadosRepository;
+    }
+
+    /**
+     * Lista todo o estoque.
+     */
+    @GetMapping
+    public ResponseEntity<List<ItensAlmoxarifados>> listarTodoEstoque() {
+        List<ItensAlmoxarifados> estoque = itensAlmoxarifadosRepository.findAll();
+        return ResponseEntity.ok(estoque);
+    }
+
+    /**
+     * Lista estoque por almoxarifado.
+     */
+    @GetMapping("/almoxarifado/{almoxarifadoId}")
+    public ResponseEntity<List<ItensAlmoxarifados>> listarPorAlmoxarifado(@PathVariable Integer almoxarifadoId) {
+        List<ItensAlmoxarifados> estoque = itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId);
+        return ResponseEntity.ok(estoque);
     }
 
     /**

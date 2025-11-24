@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
  * Controller REST para operações de produto.
  */
 @RestController
-@RequestMapping("/api/produto")
+@RequestMapping("/api/produtos")
 public class ProdutoController {
 
     private final ProdutoRepository produtoRepository;
@@ -55,7 +55,7 @@ public class ProdutoController {
             return ResponseEntity.notFound().build();
         }
 
-        Integer quantidadeTotal = itensAlmoxarifadosRepository.somarQuantidadePorProduto(id);
+        Integer quantidadeTotal = itensAlmoxarifadosRepository.somarQuantidadePorItem(id);
         
         Map<String, Object> response = new HashMap<>();
         response.put("produtoId", id);

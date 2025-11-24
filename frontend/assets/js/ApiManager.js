@@ -161,6 +161,51 @@ class ApiManager {
         });
     }
 
+    /**
+     * Registra saída de estoque (consumo/perda)
+     * @async
+     * @param {Object} saida - Dados da saída
+     * @param {number} saida.produtoId - ID do produto
+     * @param {number} saida.almoxarifadoOrigemId - ID do almoxarifado de origem
+     * @param {number} saida.loteOrigemId - ID do lote de origem
+     * @param {number} saida.quantidade - Quantidade a registrar
+     * @param {string} [saida.observacao] - Observação
+     * @returns {Promise<Object>} Movimentação de saída criada
+     */
+    async registrarSaida(saida) {
+        return this.request('/movimentacao/saida', {
+            method: 'POST',
+            body: JSON.stringify({
+                idProduto: saida.produtoId,
+                idAlmoxOrigem: saida.almoxarifadoOrigemId,
+                idLoteOrigem: saida.loteOrigemId,
+                quantidade: saida.quantidade,
+                responsavel: saida.responsavel || 'Sistema',
+                observacao: saida.observacao
+            })
+        });
+    }
+
+    /**
+     * Transfere lote entre almoxarifados (com split automático)
+     * @async
+     * @param {Object} transferencia - Dados da transferência
+     * @returns {Promise<Object>} Movimentação criada
+     */
+    async transferirLote(transferencia) {
+        return this.request('/movimentacao/transferir-lote', {
+            method: 'POST',
+            body: JSON.stringify({
+                idLoteOrigem: transferencia.loteOrigemId,
+                idAlmoxOrigem: transferencia.almoxarifadoOrigemId,
+                idAlmoxDestino: transferencia.almoxarifadoDestinoId,
+                quantidade: transferencia.quantidade,
+                responsavel: transferencia.responsavel || 'Sistema',
+                observacao: transferencia.observacao
+            })
+        });
+    }
+
     // ===== ENDPOINTS DE ALMOXARIFADOS =====
 
     /**
@@ -237,8 +282,8 @@ class ApiManager {
      */
     async listarProdutos() {
         try {
-            console.log(`[PRODUTOS] Chamando endpoint: /produto`);
-            const result = await this.request('/produto');
+            console.log(`[PRODUTOS] Chamando endpoint: /itens`);
+            const result = await this.request('/itens');
 
             if (result.success && result.data) {
                 return Array.isArray(result.data) ? result.data : [result.data];
@@ -260,7 +305,7 @@ class ApiManager {
      */
     async consultarSaldoTotalProduto(produtoId) {
         try {
-            const result = await this.request(`/produto/${produtoId}/saldo-total`);
+            const result = await this.request(`/itens/${produtoId}/saldo-total`);
             if (result.success && result.data) {
                 return result.data;
             }
@@ -279,7 +324,7 @@ class ApiManager {
      * @throws {Error} Se o produto não existir
      */
     async buscarProdutoPorId(id) {
-        return this.request(`/produto/${id}`);
+        return this.request(`/itens/${id}`);
     }    // ===== ENDPOINTS DE FORNECEDORES =====
 
     /**

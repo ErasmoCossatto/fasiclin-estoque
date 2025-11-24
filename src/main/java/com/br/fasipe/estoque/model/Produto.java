@@ -1,5 +1,6 @@
 package com.br.fasipe.estoque.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -8,8 +9,6 @@ import lombok.ToString;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Entidade que representa a tabela PRODUTO do sistema.
@@ -20,7 +19,8 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = {"almoxarifado", "itensAlmoxarifados", "movimentacoes"})
+@ToString(exclude = {"almoxarifado"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Produto implements Serializable {
     
     private static final long serialVersionUID = 1L;
@@ -58,11 +58,12 @@ public class Produto implements Serializable {
     @Column(name = "PNTPEDIDO", nullable = false)
     private Integer pontoPedido;
     
-    @OneToMany(mappedBy = "produto")
-    private List<ItensAlmoxarifados> itensAlmoxarifados = new ArrayList<>();
+    // NOTA: Relacionamentos removidos pois o sistema migrou para usar a tabela ITEM
+    // @OneToMany(mappedBy = "item")
+    // private List<ItensAlmoxarifados> itensAlmoxarifados = new ArrayList<>();
 
-    @OneToMany(mappedBy = "produto")
-    private List<MovimentacaoAlmoxarifado> movimentacoes = new ArrayList<>();
+    // @OneToMany(mappedBy = "item")
+    // private List<MovimentacaoAlmoxarifado> movimentacoes = new ArrayList<>();
 
     @Override
     public boolean equals(Object o) {

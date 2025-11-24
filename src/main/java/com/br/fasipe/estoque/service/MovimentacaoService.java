@@ -23,19 +23,19 @@ public class MovimentacaoService {
 
     private final ItensAlmoxarifadosRepository itensAlmoxarifadosRepository;
     private final MovimentacaoAlmoxarifadoRepository movimentacaoRepository;
-    private final ProdutoRepository produtoRepository;
+    private final ItemRepository itemRepository;
     private final AlmoxarifadoRepository almoxarifadoRepository;
     private final LoteRepository loteRepository;
 
     public MovimentacaoService(
             ItensAlmoxarifadosRepository itensAlmoxarifadosRepository,
             MovimentacaoAlmoxarifadoRepository movimentacaoRepository,
-            ProdutoRepository produtoRepository,
+            ItemRepository itemRepository,
             AlmoxarifadoRepository almoxarifadoRepository,
             LoteRepository loteRepository) {
         this.itensAlmoxarifadosRepository = itensAlmoxarifadosRepository;
         this.movimentacaoRepository = movimentacaoRepository;
-        this.produtoRepository = produtoRepository;
+        this.itemRepository = itemRepository;
         this.almoxarifadoRepository = almoxarifadoRepository;
         this.loteRepository = loteRepository;
     }
@@ -71,7 +71,7 @@ public class MovimentacaoService {
         validarParametros(quantidade, responsavel);
 
         // 2. Buscar e validar entidades
-        Produto produto = buscarProduto(idProduto);
+        Item produto = buscarItem(idProduto);
         Almoxarifado almoxDestino = buscarAlmoxarifado(idAlmoxDestino);
         Lote loteDestino = buscarLote(idLoteDestino);
 
@@ -122,6 +122,39 @@ public class MovimentacaoService {
     }
 
     /**
+     * Registra saída de estoque (consumo/perda).
+     */
+    @Transactional
+    public MovimentacaoAlmoxarifado registrarSaida(
+            Integer idProduto,
+            Integer idAlmoxOrigem,
+            Integer idLoteOrigem,
+            Integer quantidade,
+            String responsavel,
+            String observacao) {
+
+        log.info("Iniciando saída: Produto={}, AlmoxOrigem={}, LoteOrigem={}, Qtd={}",
+                idProduto, idAlmoxOrigem, idLoteOrigem, quantidade);
+
+        validarParametros(quantidade, responsavel);
+
+        Item produto = buscarItem(idProduto);
+        Almoxarifado almoxOrigem = buscarAlmoxarifado(idAlmoxOrigem);
+        Lote loteOrigem = buscarLote(idLoteOrigem);
+
+        validarAlmoxarifadoAtivo(almoxOrigem);
+
+        debitarEstoque(almoxOrigem, produto, loteOrigem, quantidade);
+
+        MovimentacaoAlmoxarifado movimentacao = registrarMovimentacao(
+                almoxOrigem, null, produto, loteOrigem, null,
+                quantidade, responsavel, observacao);
+
+        log.info("Saída concluída com sucesso. ID Movimentação: {}", movimentacao.getId());
+        return movimentacao;
+    }
+
+    /**
      * Consulta o histórico de movimentações.
      */
     public List<MovimentacaoAlmoxarifado> consultarHistorico(Integer almoxarifadoId) {
@@ -137,12 +170,12 @@ public class MovimentacaoService {
     public List<ItensAlmoxarifados> consultarSaldo(Integer almoxarifadoId, Integer produtoId) {
         if (almoxarifadoId != null && produtoId != null) {
             return itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId).stream()
-                    .filter(item -> item.getProduto().getId().equals(produtoId))
+                    .filter(item -> item.getItem().getId().equals(produtoId))
                     .toList();
         } else if (almoxarifadoId != null) {
             return itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId);
         } else if (produtoId != null) {
-            return itensAlmoxarifadosRepository.findByProdutoId(produtoId);
+            return itensAlmoxarifadosRepository.findByItemId(produtoId);
         }
         return itensAlmoxarifadosRepository.findAll();
     }
@@ -168,7 +201,7 @@ public class MovimentacaoService {
         }
 
         Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(idAlmoxOrigem, idProduto, idLote);
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(idAlmoxOrigem, idProduto, idLote);
 
         if (itemOpt.isEmpty()) {
             log.debug("Item não encontrado no estoque: Almox={}, Produto={}, Lote={}",
@@ -203,7 +236,7 @@ public class MovimentacaoService {
         }
 
         return itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(idAlmoxarifado, idProduto, idLote)
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(idAlmoxarifado, idProduto, idLote)
                 .map(ItensAlmoxarifados::getQuantidade)
                 .orElse(0);
     }
@@ -219,9 +252,9 @@ public class MovimentacaoService {
         }
     }
 
-    private Produto buscarProduto(Integer id) {
-        return produtoRepository.findById(id)
-                .orElseThrow(() -> new EntidadeNaoEncontradaException("Produto", id));
+    private Item buscarItem(Integer id) {
+        return itemRepository.findById(id)
+                .orElseThrow(() -> new EntidadeNaoEncontradaException("Item", id));
     }
 
     private Almoxarifado buscarAlmoxarifado(Integer id) {
@@ -241,9 +274,9 @@ public class MovimentacaoService {
         }
     }
 
-    private void debitarEstoque(Almoxarifado almox, Produto produto, Lote lote, Integer quantidade) {
+    private void debitarEstoque(Almoxarifado almox, Item produto, Lote lote, Integer quantidade) {
         Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
 
         if (itemOpt.isEmpty()) {
             throw new EstoqueInsuficienteException(
@@ -268,9 +301,9 @@ public class MovimentacaoService {
         log.debug("Debitado {} unidades do estoque. Saldo atual: {}", quantidade, item.getQuantidade());
     }
 
-    private void creditarEstoque(Almoxarifado almox, Produto produto, Lote lote, Integer quantidade) {
+    private void creditarEstoque(Almoxarifado almox, Item produto, Lote lote, Integer quantidade) {
         Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndProdutoIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
 
         ItensAlmoxarifados item;
         
@@ -283,11 +316,11 @@ public class MovimentacaoService {
             // INSERT: Criar novo item de estoque
             item = new ItensAlmoxarifados();
             item.setAlmoxarifado(almox);
-            item.setProduto(produto);
+            item.setItem(lote.getItem());
             item.setLote(lote);
             item.setQuantidade(quantidade);
-            item.setEstoqueMinimo(produto.getEstoqueMinimo());
-            item.setEstoqueMaximo(produto.getEstoqueMaximo());
+            item.setEstoqueMinimo(10);
+            item.setEstoqueMaximo(100);
             item.setAtivo(true);
             log.debug("Criado novo item de estoque com quantidade: {}", quantidade);
         }
@@ -298,7 +331,7 @@ public class MovimentacaoService {
     private MovimentacaoAlmoxarifado registrarMovimentacao(
             Almoxarifado almoxOrigem,
             Almoxarifado almoxDestino,
-            Produto produto,
+            Item produto,
             Lote loteOrigem,
             Lote loteDestino,
             Integer quantidade,
@@ -308,7 +341,7 @@ public class MovimentacaoService {
         MovimentacaoAlmoxarifado movimentacao = new MovimentacaoAlmoxarifado();
         movimentacao.setAlmoxarifadoOrigem(almoxOrigem);
         movimentacao.setAlmoxarifadoDestino(almoxDestino);
-        movimentacao.setProduto(produto);
+        movimentacao.setItem(produto);
         movimentacao.setLoteOrigem(loteOrigem);
         movimentacao.setLoteDestino(loteDestino);
         movimentacao.setQuantidade(quantidade);

@@ -155,13 +155,16 @@
                     
                     <div class="form-group">
                         <label for="type">🔄 Tipo de Movimentação *</label>
-                        <select id="type" class="form-control" required>
+                        <select id="type" class="form-control" required onchange="movimentacaoManager.handleTypeChange()">
                             <option value="">Selecione o tipo...</option>
                             <option value="ENTRADA">⬆️ Entrada</option>
                             <option value="SAIDA">⬇️ Saída</option>
+                            <option value="TRANSFERENCIA">🔄 Transferência</option>
                         </select>
                     </div>
                     
+                    <input type="hidden" id="lote-id">
+
                     <div class="form-group">
                         <label for="amount">📊 Quantidade *</label>
                         <input type="number" id="amount" min="1" class="form-control" required 

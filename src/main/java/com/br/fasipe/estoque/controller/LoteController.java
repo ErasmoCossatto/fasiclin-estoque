@@ -14,7 +14,7 @@ import java.util.Optional;
  * Controller REST para operações de lote.
  */
 @RestController
-@RequestMapping("/api/lote")
+@RequestMapping("/api/lotes")
 public class LoteController {
 
     private final LoteRepository loteRepository;

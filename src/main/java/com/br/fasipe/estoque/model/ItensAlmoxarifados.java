@@ -1,5 +1,6 @@
 package com.br.fasipe.estoque.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,7 +19,8 @@ import java.io.Serializable;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = {"almoxarifado", "produto", "lote"})
+@ToString(exclude = {"almoxarifado", "item", "lote"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ItensAlmoxarifados implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -30,14 +32,17 @@ public class ItensAlmoxarifados implements Serializable {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "IDALMOX", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Almoxarifado almoxarifado;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "IDITEM", nullable = false)
-    private Produto produto;
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Item item;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "IDLOTE", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Lote lote;
 
     @Column(name = "QUANTIDADE", nullable = false)

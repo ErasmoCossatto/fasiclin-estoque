@@ -19,12 +19,13 @@ public interface MovimentacaoAlmoxarifadoRepository extends JpaRepository<Movime
     
     List<MovimentacaoAlmoxarifado> findByAlmoxarifadoDestinoId(Integer almoxarifadoId);
     
-    List<MovimentacaoAlmoxarifado> findByProdutoId(Integer produtoId);
+    List<MovimentacaoAlmoxarifado> findByItemId(Integer itemId);
     
     List<MovimentacaoAlmoxarifado> findByDataMovimentacaoBetween(LocalDateTime dataInicio, LocalDateTime dataFim);
     
     @Query("SELECT m FROM MovimentacaoAlmoxarifado m WHERE " +
-           "m.almoxarifadoOrigem.id = :almoxarifadoId OR m.almoxarifadoDestino.id = :almoxarifadoId " +
+           "(m.almoxarifadoOrigem IS NOT NULL AND m.almoxarifadoOrigem.id = :almoxarifadoId) " +
+           "OR (m.almoxarifadoDestino IS NOT NULL AND m.almoxarifadoDestino.id = :almoxarifadoId) " +
            "ORDER BY m.dataMovimentacao DESC")
     List<MovimentacaoAlmoxarifado> findByAlmoxarifadoOrigemOrDestino(@Param("almoxarifadoId") Integer almoxarifadoId);
 }

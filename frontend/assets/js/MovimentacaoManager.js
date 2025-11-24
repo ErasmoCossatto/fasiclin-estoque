@@ -919,6 +919,36 @@ class MovimentacaoManager {
         if (firstInput) {
             setTimeout(() => firstInput.focus(), 100);
         }
+
+        // Atualizar visibilidade dos campos
+        this.handleTypeChange();
+    }
+
+    /**
+     * Gerencia a visibilidade dos campos baseado no tipo de movimentação
+     */
+    handleTypeChange() {
+        const type = document.getElementById('type').value;
+        const almoxOrigemGroup = document.getElementById('almox-origem-select').closest('.form-group');
+        const almoxDestinoGroup = document.getElementById('almox-destino-select').closest('.form-group');
+
+        if (!type) {
+            almoxOrigemGroup.style.display = 'block';
+            almoxDestinoGroup.style.display = 'block';
+            return;
+        }
+
+        if (type === 'ENTRADA') {
+            almoxOrigemGroup.style.display = 'none';
+            almoxDestinoGroup.style.display = 'block';
+            // Para entrada, o lote selecionado no painel (se houver) será o destino
+        } else if (type === 'SAIDA') {
+            almoxOrigemGroup.style.display = 'block';
+            almoxDestinoGroup.style.display = 'none';
+        } else if (type === 'TRANSFERENCIA') {
+            almoxOrigemGroup.style.display = 'block';
+            almoxDestinoGroup.style.display = 'block';
+        }
     }
 
     /**
@@ -964,12 +994,6 @@ class MovimentacaoManager {
 
     /**
      * Manipula o salvamento de uma movimentação (nova ou edição)
-     * @async
-     * @param {Event} event - Evento de submissão do formulário
-     * @returns {Promise<void>}
-     * @description Valida formulário, envia dados ao backend via POST/PUT,
-     *              recarrega dados e atualiza a interface após sucesso.
-     * @throws {Error} Se houver falha na validação ou no salvamento
      */
     async handleSave(event) {
         event.preventDefault();
@@ -987,43 +1011,50 @@ class MovimentacaoManager {
             this.setLoading(true);
 
             let response;
-            if (this.currentEditId) {
-                console.log('[SAVE] Atualizando movimentação:', this.currentEditId);
-                response = await this.apiManager.request(`/movimentacoes/${this.currentEditId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(formData)
+
+            if (formData.tipoMovimentacao === 'ENTRADA') {
+                console.log('[SAVE] Registrando ENTRADA');
+                response = await this.apiManager.registrarEntrada({
+                    produtoId: formData.idProduto,
+                    almoxarifadoId: formData.idAlmoxDestino,
+                    loteId: formData.idLote, // Usando lote selecionado como destino
+                    quantidade: formData.quantidade,
+                    responsavel: formData.responsavel,
+                    observacao: formData.observacao
+                });
+            } else if (formData.tipoMovimentacao === 'SAIDA') {
+                console.log('[SAVE] Registrando SAIDA');
+                response = await this.apiManager.registrarSaida({
+                    produtoId: formData.idProduto,
+                    almoxarifadoOrigemId: formData.idAlmoxOrigem,
+                    loteOrigemId: formData.idLote,
+                    quantidade: formData.quantidade,
+                    responsavel: formData.responsavel,
+                    observacao: formData.observacao
+                });
+            } else if (formData.tipoMovimentacao === 'TRANSFERENCIA') {
+                console.log('[SAVE] Registrando TRANSFERENCIA DE LOTE');
+                response = await this.apiManager.transferirLote({
+                    loteOrigemId: formData.idLote,
+                    almoxarifadoOrigemId: formData.idAlmoxOrigem,
+                    almoxarifadoDestinoId: formData.idAlmoxDestino,
+                    quantidade: formData.quantidade,
+                    responsavel: formData.responsavel,
+                    observacao: formData.observacao
                 });
             } else {
-                console.log('[SAVE] Criando nova movimentação');
-                response = await this.apiManager.request('/movimentacoes/entre-setores', {
-                    method: 'POST',
-                    body: JSON.stringify(formData)
-                });
+                throw new Error('Tipo de movimentação inválido');
             }
 
             if (response.success || response.id) {
-                // Sucesso!
-                this.showNotification(
-                    this.currentEditId ? '✅ Movimentação atualizada!' : '✅ Movimentação criada!',
-                    'success'
-                );
-
-                // Fechar modal
+                this.showNotification('✅ Movimentação realizada com sucesso!', 'success');
                 this.hideModal();
-
-                // Aguardar backend processar
                 await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Recarregar dados
                 await Promise.all([
                     this.loadMovimentacoes(),
-                    this.loadEstoquePorSetorTempoReal()
+                    this.loadEstoquePorAlmoxarifadoTempoReal()
                 ]);
-
-                // Renderizar
                 this.renderMovimentacoes();
-
-                console.log('[SAVE] ✅ Salvamento concluído');
             } else {
                 throw new Error(response.error || 'Erro desconhecido');
             }
@@ -1037,146 +1068,68 @@ class MovimentacaoManager {
     }
 
     /**
-     * Obtém dados do formulário formatados para transferência entre almoxarifados
-     * @returns {Object} Objeto com dados formatados no padrão MovimentacaoEntreSetoresDTO
-     * @description Coleta valores dos campos do formulário e formata para envio ao backend.
-     *              Captura data/hora local do sistema para evitar problemas de UTC.
-     * @property {number} produtoId - ID do produto
-     * @property {number} setorOrigemId - ID do almoxarifado de origem
-     * @property {number} setorDestinoId - ID do almoxarifado de destino
-     * @property {number} quantidade - Quantidade a transferir
-     * @property {string} tipoMovimentacao - Tipo da movimentação (ENTRADA/TRANSFERENCIA)
-     * @property {string} dataMovimentacao - Data no formato YYYY-MM-DD
-     * @property {string} horaMovimentacao - Hora no formato HH:mm:ss
+     * Obtém dados do formulário
      */
     getFormData() {
         const produtoId = parseInt(document.getElementById('produtoSelect').value);
-        const setorOrigemId = parseInt(document.getElementById('setor-origem-select').value);
-        const setorDestinoId = parseInt(document.getElementById('setor-destino-select').value);
+        const almoxOrigemId = parseInt(document.getElementById('almox-origem-select').value);
+        const almoxDestinoId = parseInt(document.getElementById('almox-destino-select').value);
         const quantidade = parseInt(document.getElementById('amount').value) || 0;
         const tipoMovimentacao = document.getElementById('type').value;
+        const loteId = parseInt(document.getElementById('lote-id').value);
 
-        // Capturar data e hora local do PC (sem problemas de UTC)
-        const agora = new Date();
-        const dataLocal = this.formatLocalDateForBackend(agora);
-        const horaLocal = this.formatLocalTimeForBackend(agora);
-
-        console.log('[MovimentacaoManager] Coletando dados do formulário para transferência entre setores:', {
-            produtoId,
-            setorOrigemId,
-            setorDestinoId,
-            quantidade,
-            tipoMovimentacao,
-            dataMovimentacao: dataLocal,
-            horaMovimentacao: horaLocal,
-            usuario: 'null (aguardando implementação de variável global)'
-        });
-
-        // Formato esperado pelo MovimentacaoEntreSetoresDTO
-        // NOTA: dataMovimentacao e horaMovimentacao são INFORMATIVAS apenas
-        // O backend SEMPRE usa LocalDate.now() e LocalTime.now() para garantir consistência
         return {
             idProduto: produtoId,
-            idSetorOrigem: setorOrigemId,
-            idSetorDestino: setorDestinoId,
+            idAlmoxOrigem: almoxOrigemId,
+            idAlmoxDestino: almoxDestinoId,
             quantidade: quantidade,
             tipoMovimentacao: tipoMovimentacao,
-            idUsuario: null, // Temporariamente null até implementar variável global
-            dataMovimentacao: dataLocal, // Informativo - backend usa data do servidor
-            horaMovimentacao: horaLocal  // Informativo - backend usa hora do servidor
+            idLote: loteId,
+            responsavel: 'Sistema', // TODO: Implementar usuário logado
+            observacao: null
         };
     }
 
     /**
-     * Valida formulário para transferência entre setores
+     * Valida formulário
      */
     async validateForm(data) {
-        console.log('[VALIDAÇÃO] Iniciando validação do formulário...');
-        console.log('[VALIDAÇÃO] Dados recebidos:', data);
-
         const errors = [];
 
-        if (!data.idProduto) {
-            console.log('[VALIDAÇÃO] ❌ Produto não selecionado');
-            errors.push('Selecione um produto');
-        } else {
-            console.log('[VALIDAÇÃO] ✅ Produto selecionado:', data.idProduto);
-        }
+        if (!data.idProduto) errors.push('Selecione um produto');
+        if (!data.tipoMovimentacao) errors.push('Selecione o tipo de movimentação');
+        if (!data.quantidade || data.quantidade <= 0) errors.push('Digite uma quantidade válida');
 
-        if (!data.idSetorOrigem) {
-            console.log('[VALIDAÇÃO] ❌ Setor de origem não selecionado');
-            errors.push('Selecione o setor de origem');
-        } else {
-            console.log('[VALIDAÇÃO] ✅ Setor de origem selecionado:', data.idSetorOrigem);
+        // Validação específica por tipo
+        if (data.tipoMovimentacao === 'ENTRADA') {
+            if (!data.idAlmoxDestino) errors.push('Selecione o almoxarifado de destino');
+            if (!data.idLote) errors.push('Selecione um lote para entrada (clique no painel de estoque)');
         }
-
-        if (!data.idSetorDestino) {
-            console.log('[VALIDAÇÃO] ❌ Setor de destino não selecionado');
-            errors.push('Selecione o setor de destino');
-        } else {
-            console.log('[VALIDAÇÃO] ✅ Setor de destino selecionado:', data.idSetorDestino);
+        else if (data.tipoMovimentacao === 'SAIDA') {
+            if (!data.idAlmoxOrigem) errors.push('Selecione o almoxarifado de origem');
+            if (!data.idLote) errors.push('Selecione um lote de origem (clique no painel de estoque)');
         }
-
-        if (!data.tipoMovimentacao) {
-            console.log('[VALIDAÇÃO] ❌ Tipo de movimentação não selecionado');
-            errors.push('Selecione o tipo de movimentação');
-        } else {
-            console.log('[VALIDAÇÃO] ✅ Tipo de movimentação selecionado:', data.tipoMovimentacao);
-        }
-
-        if (!data.quantidade || data.quantidade <= 0) {
-            console.log('[VALIDAÇÃO] ❌ Quantidade inválida:', data.quantidade);
-            errors.push('Digite uma quantidade válida');
-        } else {
-            console.log('[VALIDAÇÃO] ✅ Quantidade válida:', data.quantidade);
-        }
-
-        // Validar se setor origem é diferente do destino
-        if (data.idSetorOrigem === data.idSetorDestino) {
-            console.log('[VALIDAÇÃO] ❌ Setores de origem e destino são iguais');
-            errors.push('Setor de origem deve ser diferente do setor de destino');
+        else if (data.tipoMovimentacao === 'TRANSFERENCIA') {
+            if (!data.idAlmoxOrigem) errors.push('Selecione o almoxarifado de origem');
+            if (!data.idAlmoxDestino) errors.push('Selecione o almoxarifado de destino');
+            if (!data.idLote) errors.push('Selecione um lote de origem (clique no painel de estoque)');
+            if (data.idAlmoxOrigem === data.idAlmoxDestino) errors.push('Origem e destino devem ser diferentes');
         }
 
         if (errors.length > 0) {
-            console.log('[VALIDAÇÃO] ❌ Validação falhou com', errors.length, 'erros:', errors);
             this.showNotification(errors.join('<br>'), 'error');
             return false;
         }
 
-        // Validação avançada de estoque disponível
-        if (data.idProduto && data.quantidade && data.idSetorOrigem) {
-            console.log('[VALIDAÇÃO] Verificando estoque disponível...');
-            const estoqueNoSetor = this.getEstoqueDisponivelNoSetor(data.idProduto, data.idSetorOrigem);
-
-            console.log('[VALIDAÇÃO] Estoque disponível no setor:', estoqueNoSetor);
-
-            if (estoqueNoSetor === null) {
-                console.log('[VALIDAÇÃO] ❌ Produto não encontrado no setor de origem');
-                this.showNotification(
-                    `❌ Produto não encontrado no setor de origem!<br>` +
-                    `Verifique se há estoque disponível no setor selecionado.`,
-                    'error'
-                );
+        // Validação de saldo para SAIDA e TRANSFERENCIA
+        if (['SAIDA', 'TRANSFERENCIA'].includes(data.tipoMovimentacao)) {
+            const estoqueDisponivel = this.getEstoqueDisponivelNoAlmoxarifado(data.idProduto, data.idAlmoxOrigem);
+            if (estoqueDisponivel === null || data.quantidade > estoqueDisponivel) {
+                this.showNotification(`Quantidade insuficiente no almoxarifado de origem. Disponível: ${estoqueDisponivel || 0}`, 'error');
                 return false;
             }
-
-            if (data.quantidade > estoqueNoSetor) {
-                console.log('[VALIDAÇÃO] ❌ Quantidade solicitada maior que disponível');
-                const nomeSetorOrigem = this.setores.find(s => s.id == data.idSetorOrigem)?.nome || 'Setor desconhecido';
-                this.showNotification(
-                    `❌ Quantidade insuficiente no setor de origem!<br>` +
-                    `Setor: ${nomeSetorOrigem}<br>` +
-                    `Disponível: ${estoqueNoSetor}<br>` +
-                    `Solicitado: ${data.quantidade}`,
-                    'error'
-                );
-                return false;
-            }
-
-            console.log('[VALIDAÇÃO] ✅ Estoque suficiente no setor de origem');
         }
 
-        console.log('[VALIDAÇÃO] ✅ Formulário validado com sucesso!');
         return true;
     }
 
@@ -1282,8 +1235,8 @@ class MovimentacaoManager {
         try {
             console.log('[PRODUTOS] Iniciando carregamento de produtos...');
 
-            // Usa o endpoint que lista todos os produtos
-            const response = await fetch(`${this.apiManager.baseURL}/produto`, {
+            // Usa o endpoint que lista todos os itens
+            const response = await fetch(`${this.apiManager.baseURL}/itens`, {
                 method: 'GET',
                 headers: this.apiManager.headers
             });
@@ -1430,48 +1383,48 @@ class MovimentacaoManager {
     async validateQuantityInRealTime() {
         const quantityInput = document.getElementById('amount');
         const produtoSelect = document.getElementById('produtoSelect');
-        const setorOrigemSelect = document.getElementById('setor-origem-select');
+        const almoxOrigemSelect = document.getElementById('almox-origem-select');
         const saveBtn = document.getElementById('save-btn');
 
-        if (!quantityInput || !produtoSelect || !setorOrigemSelect || !saveBtn) {
+        if (!quantityInput || !produtoSelect || !almoxOrigemSelect || !saveBtn) {
             return;
         }
 
         const quantidade = parseInt(quantityInput.value);
         const produtoId = parseInt(produtoSelect.value);
-        const setorOrigemId = parseInt(setorOrigemSelect.value);
+        const almoxOrigemId = parseInt(almoxOrigemSelect.value);
 
         // Limpar mensagens anteriores
         this.clearValidationMessage();
 
-        if (quantidade && produtoId && setorOrigemId) {
+        if (quantidade && produtoId && almoxOrigemId) {
             // FORÇAR ATUALIZAÇÃO EM TEMPO REAL antes da validação
             try {
                 console.log('[VALIDAÇÃO] Atualizando dados para validação em tempo real...');
-                await this.loadEstoquePorSetorTempoReal();
+                await this.loadEstoquePorAlmoxarifadoTempoReal();
             } catch (error) {
                 console.warn('[VALIDAÇÃO] Erro ao atualizar dados em tempo real, usando cache:', error);
             }
 
-            const estoqueDisponivel = this.getEstoqueDisponivelNoSetor(produtoId, setorOrigemId);
+            const estoqueDisponivel = this.getEstoqueDisponivelNoAlmoxarifado(produtoId, almoxOrigemId);
 
             if (estoqueDisponivel === null) {
-                this.showValidationMessage('⚠️ Produto não encontrado no setor selecionado', 'warning');
+                this.showValidationMessage('⚠️ Produto não encontrado no almoxarifado selecionado', 'warning');
                 saveBtn.disabled = true;
                 return;
             }
 
             if (quantidade > estoqueDisponivel) {
-                const nomeSetor = this.setores.find(s => s.id == setorOrigemId)?.nome || 'Setor desconhecido';
+                const nomeAlmox = this.almoxarifados.find(a => a.id == almoxOrigemId)?.nome || 'Almoxarifado desconhecido';
                 this.showValidationMessage(
-                    `❌ Quantidade insuficiente no ${nomeSetor}! Disponível: ${estoqueDisponivel}`,
+                    `❌ Quantidade insuficiente no ${nomeAlmox}! Disponível: ${estoqueDisponivel}`,
                     'error'
                 );
                 saveBtn.disabled = true;
             } else {
-                const nomeSetor = this.setores.find(s => s.id == setorOrigemId)?.nome || 'Setor desconhecido';
+                const nomeAlmox = this.almoxarifados.find(a => a.id == almoxOrigemId)?.nome || 'Almoxarifado desconhecido';
                 this.showValidationMessage(
-                    `✅ OK - ${nomeSetor} tem ${estoqueDisponivel} disponível (dados atualizados)`,
+                    `✅ OK - ${nomeAlmox} tem ${estoqueDisponivel} disponível (dados atualizados)`,
                     'success'
                 );
                 saveBtn.disabled = false;
@@ -1533,24 +1486,24 @@ class MovimentacaoManager {
     /**
      * Obtém quantidade disponível de um produto em um setor específico
      */
-    getEstoqueDisponivelNoSetor(produtoId, setorId) {
-        if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
+    getEstoqueDisponivelNoAlmoxarifado(produtoId, almoxarifadoId) {
+        if (!this.estoquePorAlmoxarifado || this.estoquePorAlmoxarifado.length === 0) {
             console.warn('[ESTOQUE] Dados não carregados');
             return null;
         }
 
         // Buscar estoque específico
-        const estoque = this.estoquePorSetor.find(e =>
-            e.produto?.id == produtoId && e.setor?.id == setorId
+        const estoque = this.estoquePorAlmoxarifado.find(e =>
+            e.produto?.id == produtoId && e.almoxarifado?.id == almoxarifadoId
         );
 
         if (estoque) {
-            const qtd = estoque.quantidadeEstoque || 0;
-            console.log(`[ESTOQUE] Produto ${produtoId} no Setor ${setorId}: ${qtd} unidades`);
+            const qtd = estoque.quantidadeDisponivel || 0;
+            console.log(`[ESTOQUE] Produto ${produtoId} no Almoxarifado ${almoxarifadoId}: ${qtd} unidades`);
             return qtd;
         }
 
-        console.warn(`[ESTOQUE] Produto ${produtoId} não encontrado no Setor ${setorId}`);
+        console.warn(`[ESTOQUE] Produto ${produtoId} não encontrado no Almoxarifado ${almoxarifadoId}`);
         return 0; // Retorna 0 se não encontrar
     }
 
@@ -1558,17 +1511,17 @@ class MovimentacaoManager {
      * Obtém a quantidade disponível em estoque para um produto
      */
     getEstoqueDisponivel(estoqueId) {
-        if (!this.estoquePorSetor || this.estoquePorSetor.length === 0) {
-            console.warn('[MovimentacaoManager] Estoque por setor não carregado');
+        if (!this.estoquePorAlmoxarifado || this.estoquePorAlmoxarifado.length === 0) {
+            console.warn('[MovimentacaoManager] Estoque por almoxarifado não carregado');
             return null;
         }
 
-        const estoque = this.estoquePorSetor.find(e => e.id == estoqueId);
+        const estoque = this.estoquePorAlmoxarifado.find(e => e.id == estoqueId);
         if (estoque) {
-            return estoque.quantidadeEstoque || 0;
+            return estoque.quantidadeDisponivel || 0;
         }
 
-        // Se não encontrar no estoque por setor, tentar nos produtos
+        // Se não encontrar no estoque por almoxarifado, tentar nos produtos
         if (this.produtos && this.produtos.length > 0) {
             const produto = this.produtos.find(p => p.id == estoqueId);
             if (produto && produto.stqMax !== undefined) {
@@ -1588,7 +1541,7 @@ class MovimentacaoManager {
             console.log('[ATUALIZAÇÃO] Atualizando painel...');
 
             const before = this._estoqueSnapshot;
-            await this.loadEstoquePorSetorTempoReal();
+            await this.loadEstoquePorAlmoxarifadoTempoReal();
             const after = this._estoqueSnapshot;
 
             this.renderStockPanel();
@@ -1601,7 +1554,7 @@ class MovimentacaoManager {
         } catch (error) {
             console.error('[ATUALIZAÇÃO] ❌ Erro:', error);
             // Fallback
-            await this.loadEstoquePorSetor();
+            await this.loadEstoquePorAlmoxarifado();
             this.renderStockPanel();
         }
     }
@@ -1618,7 +1571,7 @@ class MovimentacaoManager {
             }
 
             const before = this._estoqueSnapshot;
-            await this.loadEstoquePorSetorTempoReal();
+            await this.loadEstoquePorAlmoxarifadoTempoReal();
             const after = this._estoqueSnapshot;
 
             this.renderStockPanel();
@@ -1664,7 +1617,7 @@ class MovimentacaoManager {
 
             await Promise.all([
                 this.loadMovimentacoes(),
-                this.loadEstoquePorSetorTempoReal()
+                this.loadEstoquePorAlmoxarifadoTempoReal()
             ]);
 
             this.renderMovimentacoes();
@@ -1755,14 +1708,18 @@ class MovimentacaoManager {
             } else {
                 produtos.forEach(item => {
                     const produtoNome = item.produto?.nome || 'Produto sem nome';
-                    const qtd = item.quantidadeDisponivel || 0;
+                    const loteNome = item.lote?.nomeLote || 'Lote N/A';
+                    const qtd = item.quantidadeDisponivel || item.quantidade || 0;
                     const cssClass = qtd === 0 ? 'low-stock' : qtd <= 10 ? 'low-stock' : qtd <= 50 ? 'medium-stock' : 'good-stock';
 
                     html += `
-                        <div class="stock-item" data-produto-id="${item.produto?.id}" data-almox-id="${item.almoxarifado?.id}">
+                        <div class="stock-item" data-produto-id="${item.produto?.id}" data-almox-id="${item.almoxarifado?.id}" data-lote-id="${item.lote?.id}">
                             <div class="stock-item-header">
                                 <span class="stock-item-name">${produtoNome}</span>
                                 <span class="stock-item-quantity ${cssClass}">${qtd}</span>
+                            </div>
+                            <div class="stock-item-details" style="font-size: 0.8em; color: #666;">
+                                📦 ${loteNome}
                             </div>
                             <div class="stock-item-sector">📍 ${almoxNome}</div>
                         </div>
@@ -1784,15 +1741,20 @@ class MovimentacaoManager {
             el.addEventListener('click', () => {
                 const produtoId = el.getAttribute('data-produto-id');
                 const almoxId = el.getAttribute('data-almox-id');
+                const loteId = el.getAttribute('data-lote-id');
 
                 const produtoSelect = document.getElementById('produtoSelect');
                 const almoxOrigemSelect = document.getElementById('almox-origem-select');
+                const loteInput = document.getElementById('lote-id');
 
                 if (produtoId && produtoSelect) {
                     produtoSelect.value = produtoId;
                 }
                 if (almoxId && almoxOrigemSelect) {
                     almoxOrigemSelect.value = almoxId;
+                }
+                if (loteId && loteInput) {
+                    loteInput.value = loteId;
                 }
 
                 el.classList.add('selected');
