@@ -55,6 +55,7 @@ public class ItensAlmoxarifados implements Serializable {
     private Integer estoqueMaximo;
 
     @Column(name = "ATIVO", nullable = false)
+    @Convert(converter = BooleanToCharConverter.class)
     private Boolean ativo = true;
 
     /**

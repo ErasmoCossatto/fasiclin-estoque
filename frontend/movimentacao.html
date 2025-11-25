@@ -125,9 +125,16 @@
                     <input type="hidden" id="movement-id">
                     
                     <div class="form-group">
+                        <label for="loteSelect">📦 Lote *</label>
+                        <select id="loteSelect" class="form-control">
+                            <option value="">Selecione um lote...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
                         <label for="produtoSelect">🏷️ Produto *</label>
-                        <select id="produtoSelect" class="form-control" required>
-                            <option value="">Selecione um produto...</option>
+                        <select id="produtoSelect" class="form-control" required disabled>
+                            <option value="">Selecione um lote primeiro...</option>
                         </select>
                     </div>
                     
@@ -157,9 +164,9 @@
                         <label for="type">🔄 Tipo de Movimentação *</label>
                         <select id="type" class="form-control" required onchange="movimentacaoManager.handleTypeChange()">
                             <option value="">Selecione o tipo...</option>
-                            <option value="ENTRADA">⬆️ Entrada</option>
-                            <option value="SAIDA">⬇️ Saída</option>
-                            <option value="TRANSFERENCIA">🔄 Transferência</option>
+                            <!-- <option value="ENTRADA">⬆️ Entrada</option> -->
+                            <!-- <option value="SAIDA">⬇️ Saída</option> -->
+                            <option value="TRANSFERENCIA">📤 Saída</option>
                         </select>
                     </div>
                     

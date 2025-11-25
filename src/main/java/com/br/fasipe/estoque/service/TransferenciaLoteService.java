@@ -169,11 +169,11 @@ public class TransferenciaLoteService {
     public Integer consultarQuantidadeDisponivel(Integer idAlmoxarifado, Integer idLote) {
         Lote lote = buscarLote(idLote);
         
-        return itensAlmoxarifadosRepository
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
                 .findByAlmoxarifadoIdAndItemIdAndLoteId(
-                        idAlmoxarifado, lote.getItem().getId(), idLote)
-                .map(ItensAlmoxarifados::getQuantidade)
-                .orElse(0);
+                        idAlmoxarifado, lote.getItem().getId(), idLote);
+                        
+        return itens.stream().mapToInt(ItensAlmoxarifados::getQuantidade).sum();
     }
 
     // Métodos auxiliares privados
@@ -205,22 +205,27 @@ public class TransferenciaLoteService {
     }
 
     private ItensAlmoxarifados buscarItemEstoque(Almoxarifado almox, Item produto, Lote lote) {
-        return itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId())
-                .orElseThrow(() -> new EntidadeNaoEncontradaException(
-                        String.format("Item de estoque não encontrado (Almox: %s, Produto: %s, Lote: %s)",
-                                almox.getNomeAlmoxarifado(), produto.getNomeItem(), lote.getNomeLote())));
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
+                
+        if (itens.isEmpty()) {
+            throw new EntidadeNaoEncontradaException(
+                    String.format("Item de estoque não encontrado (Almox: %s, Produto: %s, Lote: %s)",
+                            almox.getNomeAlmoxarifado(), produto.getNomeItem(), lote.getNomeLote()));
+        }
+        
+        return itens.get(0);
     }
 
     private void creditarEstoque(Almoxarifado almox, Item produto, Lote lote, Integer quantidade) {
-        Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
                 .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
 
         ItensAlmoxarifados item;
 
-        if (itemOpt.isPresent()) {
+        if (!itens.isEmpty()) {
             // UPDATE: Item já existe
-            item = itemOpt.get();
+            item = itens.get(0);
             item.adicionarQuantidade(quantidade);
             log.debug("Atualizado saldo existente. Novo saldo: {}", item.getQuantidade());
         } else {

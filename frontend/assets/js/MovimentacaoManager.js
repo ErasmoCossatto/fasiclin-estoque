@@ -51,6 +51,9 @@ class MovimentacaoManager {
         /** @type {Array<Object>} Estoque agrupado por almoxarifado */
         this.estoquePorAlmoxarifado = [];
 
+        /** @type {Array<Object>} Lista de lotes disponíveis */
+        this.lotesDisponiveis = [];
+
         /** @type {string} Snapshot para detectar mudanças reais no estoque */
         this._estoqueSnapshot = '';
 
@@ -103,7 +106,8 @@ class MovimentacaoManager {
         console.log('[CONECTIVIDADE] URL base:', this.apiManager.baseURL);
 
         try {
-            const response = await fetch(`${this.apiManager.baseURL}/movimentacoes`, {
+            // Endpoint corrigido para /movimentacao/historico ou /itens que sabemos que existe
+            const response = await fetch(`${this.apiManager.baseURL}/movimentacao/historico`, {
                 method: 'GET',
                 headers: this.apiManager.headers
             });
@@ -113,7 +117,8 @@ class MovimentacaoManager {
                 console.log('[CONECTIVIDADE] Status:', response.status, response.statusText);
             } else {
                 console.error('[CONECTIVIDADE] ❌ Backend retornou erro:', response.status, response.statusText);
-                this.showNotification(`⚠️ Backend retornou erro: ${response.status}. Verifique se o servidor está rodando.`, 'error', 6000);
+                // Não mostrar notificação de erro se for apenas um teste de conexão que falhou em um endpoint específico mas o resto funciona
+                // this.showNotification(`⚠️ Backend retornou erro: ${response.status}. Verifique se o servidor está rodando.`, 'error', 6000);
             }
         } catch (error) {
             console.error('[CONECTIVIDADE] ❌ Erro ao conectar com o backend:', error);
@@ -160,12 +165,18 @@ class MovimentacaoManager {
         const quantityInput = document.getElementById('amount');
         const produtoSelect = document.getElementById('produtoSelect');
         const almoxOrigemSelect = document.getElementById('almox-origem-select');
+        const loteSelect = document.getElementById('loteSelect');
 
         if (quantityInput && produtoSelect && almoxOrigemSelect) {
             [quantityInput, produtoSelect, almoxOrigemSelect].forEach(element => {
                 element.addEventListener('change', () => this.validateQuantityInRealTime());
                 element.addEventListener('input', () => this.validateQuantityInRealTime());
             });
+        }
+
+        // Listener para mudança de lote
+        if (loteSelect) {
+            loteSelect.addEventListener('change', () => this.handleLoteChange());
         }
 
         // Fechar modal ao clicar no overlay
@@ -211,8 +222,7 @@ class MovimentacaoManager {
      * Carrega todos os dados necessários do backend
      * @async
      * @returns {Promise<void>}
-     * @description Carrega movimentações, produtos, almoxarifados e estoque em paralelo.
-     *              Após o carregamento, renderiza automaticamente as movimentações na tabela.
+     * @description Carrega dados de forma sequencial para evitar sobrecarga no banco de dados.
      * @throws {Error} Se houver falha ao carregar qualquer recurso
      */
     async loadData() {
@@ -221,15 +231,20 @@ class MovimentacaoManager {
         try {
             console.log('[MovimentacaoManager] 🔄 Carregando todos os dados...');
 
-            // Carrega dados em paralelo
-            const promises = [
-                this.loadMovimentacoes(),
-                this.loadProdutos(),
-                this.loadAlmoxarifados(),
-                this.loadEstoquePorAlmoxarifado()
-            ];
+            // 1. Carregar Almoxarifados primeiro (necessário para o estoque)
+            await this.loadAlmoxarifados();
 
-            await Promise.all(promises);
+            // 2. Carregar Movimentações e Produtos (em paralelo, mas separado do estoque pesado)
+            await Promise.all([
+                this.loadMovimentacoes(),
+                this.loadProdutos()
+            ]);
+
+            // 3. Carregar Estoque (pesado, faz várias requisições)
+            await this.loadEstoquePorAlmoxarifado();
+
+            // 4. Carregar Lotes disponíveis
+            await this.loadLotesDisponiveis();
 
             // SEMPRE renderizar movimentações após carregamento
             console.log('[MovimentacaoManager] 📊 Renderizando movimentações após carregamento...');
@@ -423,19 +438,27 @@ class MovimentacaoManager {
         try {
             console.log('[ESTOQUE_ALMOX] 🔄 Carregando estoque por almoxarifado...');
 
-            // Buscar todos os almoxarifados com seus saldos
-            const almoxarifados = await this.apiManager.listarAlmoxarifados();
+            // Usar lista de almoxarifados já carregada se disponível
+            let almoxarifados = this.almoxarifados;
+            if (!almoxarifados || almoxarifados.length === 0) {
+                almoxarifados = await this.apiManager.listarAlmoxarifados();
+            }
 
-            // Para cada almoxarifado, buscar o saldo
-            const estoquePromises = almoxarifados.map(async (almox) => {
-                const saldo = await this.apiManager.consultarSaldoAlmoxarifado(almox.id);
-                return saldo.map(item => ({
-                    ...item,
-                    almoxarifado: almox
-                }));
-            });
+            // Buscar saldo de forma sequencial para não sobrecarregar o pool de conexões
+            const resultados = [];
+            for (const almox of almoxarifados) {
+                try {
+                    const saldo = await this.apiManager.consultarSaldoAlmoxarifado(almox.id);
+                    const saldoFormatado = saldo.map(item => ({
+                        ...item,
+                        almoxarifado: almox
+                    }));
+                    resultados.push(saldoFormatado);
+                } catch (err) {
+                    console.error(`[ESTOQUE_ALMOX] Erro ao carregar saldo do almoxarifado ${almox.id}:`, err);
+                }
+            }
 
-            const resultados = await Promise.all(estoquePromises);
             this.estoquePorAlmoxarifado = resultados.flat();
             this._estoqueSnapshot = this.createEstoqueSnapshot(this.estoquePorAlmoxarifado);
 
@@ -905,6 +928,9 @@ class MovimentacaoManager {
         }
 
         try {
+            // Carregar lotes disponíveis para o select
+            await this.loadLotesDisponiveis();
+
             await this.loadEstoquePorAlmoxarifadoTempoReal();
             this.renderStockPanel();
             console.log('[MODAL] ✅ Estoque carregado');
@@ -1294,10 +1320,19 @@ class MovimentacaoManager {
             option.value = produto.id;
             option.dataset.produto = JSON.stringify(produto);
 
-            // Monta o texto da opção
-            let textoOpcao = produto.nome;
-            if (produto.descricao) {
-                textoOpcao += ` - ${produto.descricao}`;
+            // Monta o texto da opção: Nome - Quantidade (se disponível)
+            // Se for apenas o cadastro do item, não tem quantidade.
+            // Se for estoque, tem quantidade.
+            // O usuário pediu "Nome Item e Quantidade".
+            // Como aqui estamos listando ITENS (cadastro), vamos tentar mostrar o nomeItem.
+
+            let textoOpcao = produto.nomeItem || produto.nome || 'Produto sem nome';
+
+            // Se tiver quantidade (caso venha de uma lista de estoques misturada)
+            if (produto.quantidade !== undefined) {
+                textoOpcao += ` - Qtd: ${produto.quantidade}`;
+            } else if (produto.quantidadeEstoque !== undefined) {
+                textoOpcao += ` - Qtd: ${produto.quantidadeEstoque}`;
             }
 
             option.textContent = textoOpcao;
@@ -1385,6 +1420,7 @@ class MovimentacaoManager {
         const produtoSelect = document.getElementById('produtoSelect');
         const almoxOrigemSelect = document.getElementById('almox-origem-select');
         const saveBtn = document.getElementById('save-btn');
+        const typeSelect = document.getElementById('type');
 
         if (!quantityInput || !produtoSelect || !almoxOrigemSelect || !saveBtn) {
             return;
@@ -1393,24 +1429,32 @@ class MovimentacaoManager {
         const quantidade = parseInt(quantityInput.value);
         const produtoId = parseInt(produtoSelect.value);
         const almoxOrigemId = parseInt(almoxOrigemSelect.value);
+        const tipoMovimentacao = typeSelect ? typeSelect.value : '';
 
         // Limpar mensagens anteriores
         this.clearValidationMessage();
 
+        // Se for ENTRADA, não valida saldo de origem
+        if (tipoMovimentacao === 'ENTRADA') {
+            saveBtn.disabled = false;
+            return;
+        }
+
         if (quantidade && produtoId && almoxOrigemId) {
             // FORÇAR ATUALIZAÇÃO EM TEMPO REAL antes da validação
             try {
-                console.log('[VALIDAÇÃO] Atualizando dados para validação em tempo real...');
-                await this.loadEstoquePorAlmoxarifadoTempoReal();
+                // Apenas atualiza se não for muito frequente (debounce poderia ser melhor aqui)
+                // await this.loadEstoquePorAlmoxarifadoTempoReal(); 
+                // Comentado para evitar flood de requisições, usar dados em cache ou atualizar apenas no foco
             } catch (error) {
-                console.warn('[VALIDAÇÃO] Erro ao atualizar dados em tempo real, usando cache:', error);
+                console.warn('[VALIDAÇÃO] Erro ao atualizar dados em tempo real:', error);
             }
 
             const estoqueDisponivel = this.getEstoqueDisponivelNoAlmoxarifado(produtoId, almoxOrigemId);
 
             if (estoqueDisponivel === null) {
                 this.showValidationMessage('⚠️ Produto não encontrado no almoxarifado selecionado', 'warning');
-                saveBtn.disabled = true;
+                // Não desabilita para permitir correção ou caso seja erro de carregamento
                 return;
             }
 
@@ -1424,7 +1468,7 @@ class MovimentacaoManager {
             } else {
                 const nomeAlmox = this.almoxarifados.find(a => a.id == almoxOrigemId)?.nome || 'Almoxarifado desconhecido';
                 this.showValidationMessage(
-                    `✅ OK - ${nomeAlmox} tem ${estoqueDisponivel} disponível (dados atualizados)`,
+                    `✅ OK - ${nomeAlmox} tem ${estoqueDisponivel} disponível`,
                     'success'
                 );
                 saveBtn.disabled = false;
@@ -1492,13 +1536,15 @@ class MovimentacaoManager {
             return null;
         }
 
-        // Buscar estoque específico
+        // Buscar estoque específico (suporta tanto estrutura antiga .produto quanto nova .item)
         const estoque = this.estoquePorAlmoxarifado.find(e =>
-            e.produto?.id == produtoId && e.almoxarifado?.id == almoxarifadoId
+            (e.item?.id == produtoId || e.produto?.id == produtoId) &&
+            e.almoxarifado?.id == almoxarifadoId
         );
 
         if (estoque) {
-            const qtd = estoque.quantidadeDisponivel || 0;
+            // Se tiver quantidade (campo direto) ou quantidadeDisponivel (calculado)
+            const qtd = estoque.quantidade !== undefined ? estoque.quantidade : (estoque.quantidadeDisponivel || 0);
             console.log(`[ESTOQUE] Produto ${produtoId} no Almoxarifado ${almoxarifadoId}: ${qtd} unidades`);
             return qtd;
         }
@@ -1707,13 +1753,17 @@ class MovimentacaoManager {
                 `;
             } else {
                 produtos.forEach(item => {
-                    const produtoNome = item.produto?.nome || 'Produto sem nome';
+                    // Suporte para estrutura nova (.item) e antiga (.produto)
+                    const produtoNome = item.item?.nomeItem || item.produto?.nome || 'Produto sem nome';
+                    const produtoId = item.item?.id || item.produto?.id;
                     const loteNome = item.lote?.nomeLote || 'Lote N/A';
-                    const qtd = item.quantidadeDisponivel || item.quantidade || 0;
+                    // Quantidade pode vir como 'quantidade' (entidade) ou 'quantidadeDisponivel' (DTO)
+                    const qtd = item.quantidade !== undefined ? item.quantidade : (item.quantidadeDisponivel || 0);
+
                     const cssClass = qtd === 0 ? 'low-stock' : qtd <= 10 ? 'low-stock' : qtd <= 50 ? 'medium-stock' : 'good-stock';
 
                     html += `
-                        <div class="stock-item" data-produto-id="${item.produto?.id}" data-almox-id="${item.almoxarifado?.id}" data-lote-id="${item.lote?.id}">
+                        <div class="stock-item" data-produto-id="${produtoId}" data-almox-id="${item.almoxarifado?.id}" data-lote-id="${item.lote?.id}">
                             <div class="stock-item-header">
                                 <span class="stock-item-name">${produtoNome}</span>
                                 <span class="stock-item-quantity ${cssClass}">${qtd}</span>
@@ -1768,6 +1818,116 @@ class MovimentacaoManager {
     }
 
     /**
+     * Carrega lotes disponíveis para seleção
+     */
+    async loadLotesDisponiveis() {
+        try {
+            console.log('[LOTES] Carregando lotes disponíveis...');
+            // Usando o endpoint que criamos anteriormente
+            const response = await this.apiManager.request('/movimentacao/lotes-disponiveis');
+
+            if (response.success && response.data) {
+                this.lotesDisponiveis = response.data;
+                this.populateLoteSelect();
+            } else {
+                console.warn('[LOTES] Falha ao carregar lotes:', response);
+                this.lotesDisponiveis = [];
+                this.populateLoteSelect();
+            }
+        } catch (error) {
+            console.error('[LOTES] Erro:', error);
+            this.lotesDisponiveis = [];
+            this.populateLoteSelect();
+        }
+    }
+
+    /**
+     * Popula o select de lotes
+     */
+    populateLoteSelect() {
+        const select = document.getElementById('loteSelect');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Selecione um lote...</option>';
+
+        if (!this.lotesDisponiveis || this.lotesDisponiveis.length === 0) {
+            select.innerHTML += '<option value="" disabled>Nenhum lote disponível</option>';
+            return;
+        }
+
+        this.lotesDisponiveis.forEach(lote => {
+            const option = document.createElement('option');
+            option.value = lote.idLote;
+            // Mostra: Nome Lote - Produto (Qtd)
+            option.textContent = `${lote.nomeLote} - ${lote.nomeProduto} (Qtd: ${lote.quantidadeDisponivel})`;
+            option.dataset.lote = JSON.stringify(lote);
+            select.appendChild(option);
+        });
+    }
+
+    /**
+     * Manipula a mudança de seleção do lote
+     */
+    handleLoteChange() {
+        const loteSelect = document.getElementById('loteSelect');
+        const produtoSelect = document.getElementById('produtoSelect');
+        const almoxOrigemSelect = document.getElementById('almox-origem-select');
+        const loteIdInput = document.getElementById('lote-id');
+
+        if (!loteSelect || !produtoSelect) return;
+
+        const selectedOption = loteSelect.selectedOptions[0];
+        if (!selectedOption || !selectedOption.value) {
+            // Resetar campos se nenhum lote selecionado
+            produtoSelect.value = '';
+            if (almoxOrigemSelect) almoxOrigemSelect.value = '';
+            if (loteIdInput) loteIdInput.value = '';
+            return;
+        }
+
+        try {
+            const loteData = JSON.parse(selectedOption.dataset.lote);
+            console.log('[LOTE] Lote selecionado:', loteData);
+
+            // 1. Setar ID do lote no campo hidden
+            if (loteIdInput) loteIdInput.value = loteData.idLote;
+
+            // 2. Setar Almoxarifado de Origem
+            if (almoxOrigemSelect) {
+                almoxOrigemSelect.value = loteData.idAlmoxarifado;
+                // Disparar evento change para validações visuais se houver
+                almoxOrigemSelect.dispatchEvent(new Event('change'));
+            }
+
+            // 3. Setar Produto
+            // Verificar se a opção já existe, se não, criar temporariamente
+            let productOption = produtoSelect.querySelector(`option[value="${loteData.idProduto}"]`);
+            if (!productOption) {
+                console.log('[LOTE] Produto não encontrado no select, adicionando temporariamente...');
+                productOption = document.createElement('option');
+                productOption.value = loteData.idProduto;
+                productOption.textContent = loteData.nomeProduto;
+                produtoSelect.appendChild(productOption);
+            }
+
+            produtoSelect.value = loteData.idProduto;
+
+            // 4. Validar quantidade máxima permitida (que é a do lote)
+            const quantityInput = document.getElementById('amount');
+            if (quantityInput) {
+                quantityInput.max = loteData.quantidadeDisponivel;
+                quantityInput.placeholder = `Máx: ${loteData.quantidadeDisponivel}`;
+            }
+
+            // Validar em tempo real
+            this.validateQuantityInRealTime();
+
+        } catch (e) {
+            console.error('[LOTE] Erro ao processar seleção de lote:', e);
+        }
+    }
+
+    /**
      * Formata data para exibição
      */
     formatDate(dateString) {
@@ -1784,22 +1944,14 @@ class MovimentacaoManager {
         try {
             let date;
 
-            console.log('[formatDate] Data recebida:', dateString, 'Tipo:', typeof dateString, 'É array:', Array.isArray(dateString));
-
             // Se é um array (formato LocalDate do Spring Boot) [ano, mês, dia]
             if (Array.isArray(dateString) && dateString.length >= 3) {
-                // Spring Boot retorna: [ano, mês (1-12), dia]
-                // JavaScript Date espera: (ano, mês (0-11), dia)
                 const ano = dateString[0];
                 const mes = dateString[1] - 1; // Converter de 1-12 para 0-11
                 const dia = dateString[2];
-
-                console.log('[formatDate] Criando data a partir de array:', { ano, mes: mes + 1, dia });
                 date = new Date(ano, mes, dia);
             } else if (typeof dateString === 'string') {
                 // Se é uma string no formato ISO (YYYY-MM-DD)
-                console.log('[formatDate] Processando string de data:', dateString);
-                // Usar parseISO corretamente para evitar problemas de timezone
                 const parts = dateString.split('-');
                 if (parts.length === 3) {
                     date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -1807,13 +1959,10 @@ class MovimentacaoManager {
                     date = new Date(dateString);
                 }
             } else {
-                // Tentar conversão direta
                 date = new Date(dateString);
             }
 
-            // Verificar se a data é válida
             if (isNaN(date.getTime())) {
-                console.warn('[formatDate] Data inválida após conversão:', dateString);
                 const agora = new Date();
                 return agora.toLocaleDateString('pt-BR', {
                     day: '2-digit',
@@ -1822,17 +1971,14 @@ class MovimentacaoManager {
                 });
             }
 
-            const formatted = date.toLocaleDateString('pt-BR', {
+            return date.toLocaleDateString('pt-BR', {
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric'
             });
 
-            console.log('[formatDate] Data formatada:', formatted);
-            return formatted;
-
         } catch (error) {
-            console.error('[formatDate] Erro ao formatar data:', error, 'Data recebida:', dateString);
+            console.error('[formatDate] Erro ao formatar data:', error);
             const agora = new Date();
             return agora.toLocaleDateString('pt-BR', {
                 day: '2-digit',
@@ -1844,7 +1990,6 @@ class MovimentacaoManager {
 
     formatTime(timeString) {
         if (!timeString) {
-            console.warn('[formatTime] Hora não fornecida, usando hora atual');
             const agora = new Date();
             return agora.toLocaleTimeString('pt-BR', {
                 hour: '2-digit',
@@ -1853,53 +1998,40 @@ class MovimentacaoManager {
         }
 
         try {
-            console.log('[formatTime] Hora recebida:', timeString, 'Tipo:', typeof timeString, 'É array:', Array.isArray(timeString));
-
-            // Se já está no formato HH:mm:ss ou HH:mm, extrair apenas HH:mm
+            // Se já está no formato HH:mm:ss ou HH:mm
             if (typeof timeString === 'string' && timeString.includes(':')) {
                 const parts = timeString.split(':');
                 if (parts.length >= 2) {
-                    const formatted = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-                    console.log('[formatTime] Hora formatada de string:', formatted);
-                    return formatted;
+                    return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
                 }
             }
 
-            // Se é um array [H, M, S] (formato LocalTime do Spring Boot)
+            // Se é um array [H, M, S]
             if (Array.isArray(timeString) && timeString.length >= 2) {
                 const hours = timeString[0].toString().padStart(2, '0');
                 const minutes = timeString[1].toString().padStart(2, '0');
-                const formatted = `${hours}:${minutes}`;
-                console.log('[formatTime] Hora formatada de array:', formatted);
-                return formatted;
+                return `${hours}:${minutes}`;
             }
 
-            // Se é um objeto LocalTime do Jackson
+            // Se é um objeto LocalTime
             if (typeof timeString === 'object' && timeString !== null) {
                 if (timeString.hour !== undefined && timeString.minute !== undefined) {
                     const hours = timeString.hour.toString().padStart(2, '0');
                     const minutes = timeString.minute.toString().padStart(2, '0');
-                    const formatted = `${hours}:${minutes}`;
-                    console.log('[formatTime] Hora formatada de objeto:', formatted);
-                    return formatted;
+                    return `${hours}:${minutes}`;
                 }
             }
 
-            // Tentar criar uma data e extrair a hora
             const date = new Date(timeString);
             if (!isNaN(date.getTime())) {
-                const formatted = date.toLocaleTimeString('pt-BR', {
+                return date.toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
-                console.log('[formatTime] Hora formatada de Date:', formatted);
-                return formatted;
             }
 
-            console.warn('[formatTime] Não foi possível formatar hora:', timeString);
             return '--:--';
         } catch (error) {
-            console.error('[formatTime] Erro ao formatar hora:', error);
             return '--:--';
         }
     }
@@ -1907,9 +2039,6 @@ class MovimentacaoManager {
     formatDateTime(dateString, timeString) {
         const formattedDate = this.formatDate(dateString);
         const formattedTime = this.formatTime(timeString);
-
-        // O formatDate agora sempre retorna uma data válida (atual como fallback)
-        // então não precisamos verificar se é 'N/A'
         return `${formattedDate} ${formattedTime}`;
     }
 
@@ -1918,7 +2047,7 @@ class MovimentacaoManager {
      */
     formatLocalDateForBackend(date = new Date()) {
         const ano = date.getFullYear();
-        const mes = String(date.getMonth() + 1).padStart(2, '0'); // getMonth() retorna 0-11
+        const mes = String(date.getMonth() + 1).padStart(2, '0');
         const dia = String(date.getDate()).padStart(2, '0');
         return `${ano}-${mes}-${dia}`;
     }

@@ -1,5 +1,6 @@
 package com.br.fasipe.estoque.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -49,18 +50,36 @@ public class Lote implements Serializable {
     @Column(name = "DATA_FABRICACAO")
     private LocalDate dataFabricacao;
 
-    @Column(name = "DATA_VALIDADE")
+    @Column(name = "DATAVENC")
     private LocalDate dataValidade;
+
+    @Column(name = "DATA_VALIDADE")
+    private LocalDate dataValidadeOriginal;
+
+    @PrePersist
+    @PreUpdate
+    public void sincronizarDatas() {
+        if (this.dataValidade != null && this.dataValidadeOriginal == null) {
+            this.dataValidadeOriginal = this.dataValidade;
+        } else if (this.dataValidadeOriginal != null && this.dataValidade == null) {
+            this.dataValidade = this.dataValidadeOriginal;
+        } else if (this.dataValidade != null) {
+            this.dataValidadeOriginal = this.dataValidade;
+        }
+    }
 
     @Column(name = "OBSERVACAO", length = 500)
     private String observacao;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "lote")
     private List<ItensAlmoxarifados> itensAlmoxarifados = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "loteOrigem")
     private List<MovimentacaoAlmoxarifado> movimentacoesOrigem = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "loteDestino")
     private List<MovimentacaoAlmoxarifado> movimentacoesDestino = new ArrayList<>();
 

@@ -15,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ItensAlmoxarifadosRepository extends JpaRepository<ItensAlmoxarifados, Integer> {
     
-    Optional<ItensAlmoxarifados> findByAlmoxarifadoIdAndItemIdAndLoteId(
+    List<ItensAlmoxarifados> findByAlmoxarifadoIdAndItemIdAndLoteId(
         Integer almoxarifadoId, Integer itemId, Integer loteId);
     
     List<ItensAlmoxarifados> findByAlmoxarifadoId(Integer almoxarifadoId);

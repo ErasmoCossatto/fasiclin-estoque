@@ -1,5 +1,6 @@
 package com.br.fasipe.estoque.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -47,15 +48,19 @@ public class Almoxarifado implements Serializable {
     @Convert(converter = BooleanToCharConverter.class)
     private Boolean ativo = true;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "almoxarifado")
     private List<ItensAlmoxarifados> itensAlmoxarifados = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "almoxarifadoOrigem")
     private List<MovimentacaoAlmoxarifado> movimentacoesOrigem = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "almoxarifadoDestino")
     private List<MovimentacaoAlmoxarifado> movimentacoesDestino = new ArrayList<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "almoxarifado")
     private List<Produto> produtos = new ArrayList<>();
 

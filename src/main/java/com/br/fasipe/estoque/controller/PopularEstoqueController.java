@@ -66,12 +66,12 @@ public class PopularEstoqueController {
                     }
 
                     // Verificar se já existe
-                    boolean jaExiste = itensRepository
+                    boolean jaExiste = !itensRepository
                             .findByAlmoxarifadoIdAndItemIdAndLoteId(
                                     teste.getId(),
                                     lote.getItem().getId(),
                                     lote.getId())
-                            .isPresent();
+                            .isEmpty();
 
                     if (jaExiste) {
                         log.info("Item já existe para Lote {} - pulando", lote.getId());

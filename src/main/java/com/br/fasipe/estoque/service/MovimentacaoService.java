@@ -168,16 +168,40 @@ public class MovimentacaoService {
      * Consulta saldo de um produto em um almoxarifado.
      */
     public List<ItensAlmoxarifados> consultarSaldo(Integer almoxarifadoId, Integer produtoId) {
+        List<ItensAlmoxarifados> rawList;
+        
         if (almoxarifadoId != null && produtoId != null) {
-            return itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId).stream()
+            rawList = itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId).stream()
                     .filter(item -> item.getItem().getId().equals(produtoId))
                     .toList();
         } else if (almoxarifadoId != null) {
-            return itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId);
+            rawList = itensAlmoxarifadosRepository.findByAlmoxarifadoId(almoxarifadoId);
         } else if (produtoId != null) {
-            return itensAlmoxarifadosRepository.findByItemId(produtoId);
+            rawList = itensAlmoxarifadosRepository.findByItemId(produtoId);
+        } else {
+            rawList = itensAlmoxarifadosRepository.findAll();
         }
-        return itensAlmoxarifadosRepository.findAll();
+        
+        // Consolidar duplicatas para visualização
+        java.util.Map<String, ItensAlmoxarifados> mergedMap = new java.util.HashMap<>();
+        
+        for (ItensAlmoxarifados item : rawList) {
+            // Chave única: Almox + Item + Lote
+            String key = item.getAlmoxarifado().getId() + "-" + item.getItem().getId() + "-" + item.getLote().getId();
+            
+            if (mergedMap.containsKey(key)) {
+                ItensAlmoxarifados existing = mergedMap.get(key);
+                // Somar quantidade (apenas em memória para exibição)
+                existing.setQuantidade(existing.getQuantidade() + item.getQuantidade());
+            } else {
+                // Adicionar ao mapa (usando o próprio objeto, cuidado para não alterar o original se for persistido na mesma transação)
+                // Como é leitura, não deve ter problema, mas ideal seria clonar.
+                // Para simplificar, usamos o objeto original.
+                mergedMap.put(key, item);
+            }
+        }
+        
+        return new java.util.ArrayList<>(mergedMap.values());
     }
 
     /**
@@ -200,16 +224,17 @@ public class MovimentacaoService {
             return false;
         }
 
-        Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
                 .findByAlmoxarifadoIdAndItemIdAndLoteId(idAlmoxOrigem, idProduto, idLote);
 
-        if (itemOpt.isEmpty()) {
+        if (itens.isEmpty()) {
             log.debug("Item não encontrado no estoque: Almox={}, Produto={}, Lote={}",
                     idAlmoxOrigem, idProduto, idLote);
             return false;
         }
 
-        Integer disponivel = itemOpt.get().getQuantidade();
+        // Soma a quantidade de todos os registros encontrados (caso haja duplicatas)
+        Integer disponivel = itens.stream().mapToInt(ItensAlmoxarifados::getQuantidade).sum();
         boolean temEstoque = disponivel >= quantidade;
         
         log.debug("Verificação de disponibilidade: Disponível={}, Solicitado={}, Resultado={}",
@@ -235,10 +260,10 @@ public class MovimentacaoService {
             return 0;
         }
 
-        return itensAlmoxarifadosRepository
-                .findByAlmoxarifadoIdAndItemIdAndLoteId(idAlmoxarifado, idProduto, idLote)
-                .map(ItensAlmoxarifados::getQuantidade)
-                .orElse(0);
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
+                .findByAlmoxarifadoIdAndItemIdAndLoteId(idAlmoxarifado, idProduto, idLote);
+                
+        return itens.stream().mapToInt(ItensAlmoxarifados::getQuantidade).sum();
     }
 
     // Métodos auxiliares privados
@@ -275,41 +300,79 @@ public class MovimentacaoService {
     }
 
     private void debitarEstoque(Almoxarifado almox, Item produto, Lote lote, Integer quantidade) {
-        Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
                 .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
 
-        if (itemOpt.isEmpty()) {
+        if (itens.isEmpty()) {
             throw new EstoqueInsuficienteException(
                     String.format("Produto '%s' (Lote: %s) não encontrado no almoxarifado '%s'. " +
                             "Realize uma entrada de estoque antes de transferir.",
                             produto.getDescricao(), lote.getNomeLote(), almox.getNomeAlmoxarifado()));
         }
 
-        ItensAlmoxarifados item = itemOpt.get();
+        ItensAlmoxarifados itemPrincipal = itens.get(0);
+
+        // Se houver duplicatas, consolidar
+        if (itens.size() > 1) {
+            log.warn("Detectada duplicidade de estoque para Almox={}, Produto={}, Lote={}. Consolidando...", 
+                    almox.getId(), produto.getId(), lote.getId());
+            
+            int totalQuantidade = 0;
+            for (ItensAlmoxarifados item : itens) {
+                totalQuantidade += item.getQuantidade();
+            }
+            
+            // Mantém o primeiro e remove os outros
+            itemPrincipal.setQuantidade(totalQuantidade);
+            
+            for (int i = 1; i < itens.size(); i++) {
+                itensAlmoxarifadosRepository.delete(itens.get(i));
+            }
+            
+            log.info("Estoque consolidado. Nova quantidade total: {}", totalQuantidade);
+        }
         
-        if (item.getQuantidade() < quantidade) {
+        if (itemPrincipal.getQuantidade() < quantidade) {
             throw new EstoqueInsuficienteException(
                     String.format("Estoque insuficiente no almoxarifado '%s'. " +
                             "Produto: '%s', Lote: %s. Disponível: %d, Solicitado: %d",
                             almox.getNomeAlmoxarifado(), produto.getDescricao(),
-                            lote.getNomeLote(), item.getQuantidade(), quantidade));
+                            lote.getNomeLote(), itemPrincipal.getQuantidade(), quantidade));
         }
 
-        item.removerQuantidade(quantidade);
-        itensAlmoxarifadosRepository.save(item);
+        itemPrincipal.removerQuantidade(quantidade);
+        itensAlmoxarifadosRepository.save(itemPrincipal);
         
-        log.debug("Debitado {} unidades do estoque. Saldo atual: {}", quantidade, item.getQuantidade());
+        log.debug("Debitado {} unidades do estoque. Saldo atual: {}", quantidade, itemPrincipal.getQuantidade());
     }
 
     private void creditarEstoque(Almoxarifado almox, Item produto, Lote lote, Integer quantidade) {
-        Optional<ItensAlmoxarifados> itemOpt = itensAlmoxarifadosRepository
+        List<ItensAlmoxarifados> itens = itensAlmoxarifadosRepository
                 .findByAlmoxarifadoIdAndItemIdAndLoteId(almox.getId(), produto.getId(), lote.getId());
 
         ItensAlmoxarifados item;
         
-        if (itemOpt.isPresent()) {
-            // UPDATE: Item já existe, apenas adiciona quantidade
-            item = itemOpt.get();
+        if (!itens.isEmpty()) {
+            // UPDATE: Item já existe
+            item = itens.get(0);
+            
+            // Se houver duplicatas, consolidar antes de creditar
+            if (itens.size() > 1) {
+                log.warn("Detectada duplicidade de estoque (crédito) para Almox={}, Produto={}, Lote={}. Consolidando...", 
+                        almox.getId(), produto.getId(), lote.getId());
+                
+                int totalQuantidade = 0;
+                for (ItensAlmoxarifados i : itens) {
+                    totalQuantidade += i.getQuantidade();
+                }
+                
+                item.setQuantidade(totalQuantidade);
+                
+                for (int i = 1; i < itens.size(); i++) {
+                    itensAlmoxarifadosRepository.delete(itens.get(i));
+                }
+            }
+            
             item.adicionarQuantidade(quantidade);
             log.debug("Atualizado saldo existente. Novo saldo: {}", item.getQuantidade());
         } else {
