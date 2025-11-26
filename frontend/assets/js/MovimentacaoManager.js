@@ -679,23 +679,28 @@ class MovimentacaoManager {
         const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
 
         // Formatar origem e destino com fallbacks
-        const origem = movimentacao.setorOrigem?.nome ||
-            movimentacao.setorOrigemId?.nome ||
+        // Backend retorna 'almoxarifadoOrigem' e 'almoxarifadoDestino'
+        const origem = movimentacao.almoxarifadoOrigem?.nomeAlmoxarifado ||
+            movimentacao.almoxarifadoOrigem?.descricao ||
+            movimentacao.setorOrigem?.nome ||
             'Origem N/A';
-        const destino = movimentacao.setorDestino?.nome ||
-            movimentacao.setorDestinoId?.nome ||
+
+        const destino = movimentacao.almoxarifadoDestino?.nomeAlmoxarifado ||
+            movimentacao.almoxarifadoDestino?.descricao ||
+            movimentacao.setorDestino?.nome ||
             'Destino N/A';
+
         const fluxo = `${origem} → ${destino}`;
 
         // Nome do usuário com fallbacks
         const nomeUsuario = movimentacao.usuario?.nome ||
             movimentacao.usuario?.login ||
-            movimentacao.nomeUsuario ||
+            movimentacao.responsavel ||
             'Usuário N/A';
 
         // Produto com fallbacks
-        const nomeProduto = movimentacao.estoque?.produto?.nome ||
-            movimentacao.produto?.nome ||
+        const nomeProduto = movimentacao.item?.nomeItem ||
+            movimentacao.item?.descricao ||
             movimentacao.nomeProduto ||
             'Produto N/A';
 
@@ -715,9 +720,6 @@ class MovimentacaoManager {
                 <td>${dataHora}</td>
                 <td>${nomeUsuario}</td>
                 <td class="action-buttons">
-                    <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})" title="Editar">
-                        ✏️
-                    </button>
                     <button class="delete-btn" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})" title="Excluir">
                         🗑️
                     </button>
@@ -741,8 +743,12 @@ class MovimentacaoManager {
         const tipoClass = movimentacao.tipoMovimentacao === 'ENTRADA' ? 'type-income' : 'type-expense';
 
         // Formatar origem e destino
-        const origem = movimentacao.setorOrigem?.nome || 'N/A';
-        const destino = movimentacao.setorDestino?.nome || 'N/A';
+        const origem = movimentacao.almoxarifadoOrigem?.nomeAlmoxarifado ||
+            movimentacao.almoxarifadoOrigem?.descricao ||
+            'N/A';
+        const destino = movimentacao.almoxarifadoDestino?.nomeAlmoxarifado ||
+            movimentacao.almoxarifadoDestino?.descricao ||
+            'N/A';
 
         return `
             <div class="mobile-card" data-id="${movimentacao.id}">
@@ -767,11 +773,10 @@ class MovimentacaoManager {
                     </div>
                     <div class="mobile-card-row">
                         <span class="mobile-card-label">Usuário:</span>
-                        <span class="mobile-card-value">${movimentacao.usuario?.nome || movimentacao.usuario?.login || movimentacao.nomeUsuario || 'N/A'}</span>
+                        <span class="mobile-card-value">${movimentacao.responsavel || 'N/A'}</span>
                     </div>
                 </div>
                 <div class="mobile-card-actions">
-                    <button class="edit-btn" onclick="movimentacaoManager.editMovimentacao(${movimentacao.id})">✏️ Editar</button>
                     <button class="delete-btn" onclick="movimentacaoManager.deleteMovimentacao(${movimentacao.id})">🗑️ Excluir</button>
                 </div>
             </div>

@@ -132,6 +132,15 @@ public class MovimentacaoController {
         return ResponseEntity.ok(quantidade);
     }
 
+    /**
+     * Exclui uma movimentação do histórico.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> excluirMovimentacao(@PathVariable Integer id) {
+        movimentacaoService.excluirMovimentacao(id);
+        return ResponseEntity.noContent().build();
+    }
+
     // DTOs
 
     @Data

@@ -82,4 +82,21 @@ public class MovimentacaoAlmoxarifado implements Serializable {
     public int hashCode() {
         return getClass().hashCode();
     }
+
+    /**
+     * Retorna o tipo de movimentação calculado.
+     * ENTRADA: Origem NULL
+     * SAIDA: Destino NULL
+     * TRANSFERENCIA: Origem e Destino preenchidos
+     */
+    public String getTipoMovimentacao() {
+        if (almoxarifadoOrigem == null && almoxarifadoDestino != null) {
+            return "ENTRADA";
+        } else if (almoxarifadoOrigem != null && almoxarifadoDestino == null) {
+            return "SAIDA";
+        } else if (almoxarifadoOrigem != null && almoxarifadoDestino != null) {
+            return "TRANSFERENCIA";
+        }
+        return "INDEFINIDO";
+    }
 }

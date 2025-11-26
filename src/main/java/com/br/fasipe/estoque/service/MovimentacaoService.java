@@ -266,6 +266,19 @@ public class MovimentacaoService {
         return itens.stream().mapToInt(ItensAlmoxarifados::getQuantidade).sum();
     }
 
+    /**
+     * Exclui uma movimentação pelo ID.
+     * ATENÇÃO: Apenas remove o registro histórico, não reverte o estoque.
+     */
+    @Transactional
+    public void excluirMovimentacao(Integer id) {
+        if (!movimentacaoRepository.existsById(id)) {
+            throw new EntidadeNaoEncontradaException("Movimentação", id);
+        }
+        movimentacaoRepository.deleteById(id);
+        log.info("Movimentação {} excluída com sucesso.", id);
+    }
+
     // Métodos auxiliares privados
 
     private void validarParametros(Integer quantidade, String responsavel) {
