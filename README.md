@@ -18,9 +18,9 @@
   ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 
   <p>
-    <img src="https://img.shields.io/github/actions/workflow/status/matheusassuncaoo/fasiclin-estoque/main.yml?style=for-the-badge&branch=main" alt="Build Status">
-    <img src="https://img.shields.io/github/license/matheusassuncaoo/fasiclin-estoque?style=for-the-badge" alt="Licença">
-    <img src="https://img.shields.io/github/last-commit/matheusassuncaoo/fasiclin-estoque?style=for-the-badge" alt="Último Commit">
+    <img src="https://img.shields.io/github/actions/workflow/status/fasiclin-estoque/main.yml?style=for-the-badge&branch=main" alt="Build Status">
+    <img src="https://img.shields.io/github/license/fasiclin-estoque?style=for-the-badge" alt="Licença">
+    <img src="https://img.shields.io/github/last-commit/fasiclin-estoque?style=for-the-badge" alt="Último Commit">
   </p>
 </div>
 
@@ -81,7 +81,7 @@ Antes de começar, você vai precisar ter instalado em sua máquina:
 
 1.  **Clone o repositório da API:**
     ```bash
-    git clone [https://github.com/matheusassuncaoo/fasiclin-estoque.git](https://github.com/matheusassuncaoo/fasiclin-estoque.git)
+    git clone [https://github.com/fasiclin-estoque.git](https://github.com/fasiclin-estoque.git)
     cd fasiclin-estoque
     ```
 
@@ -115,6 +115,6 @@ Antes de começar, você vai precisar ter instalado em sua máquina:
 
 Agradecemos a todos que contribuíram para este projeto!
 
-<a href="https://github.com/matheusassuncaoo/fasiclin-estoque/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=matheusassuncaoo/fasiclin-estoque" alt="Contribuidores" title="Contribuidores do Fasiclin Estoque"/>
+<a href="https://github.com/fasiclin-estoque/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=/fasiclin-estoque" alt="Contribuidores" title="Contribuidores do Fasiclin Estoque"/>
 </a>
